@@ -58,12 +58,10 @@ function requestFirstTimePermissions() {
   if (!firstVisit) return;
   localStorage.setItem("visited", "true");
 
-  // Request notification permission
   if ("Notification" in window) {
     Notification.requestPermission().catch(() => {});
   }
 
-  // Request location permission (silent — no UI needed)
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       () => {},
@@ -80,7 +78,6 @@ function WelcomeOverlay({ onDone }: { onDone: () => void }) {
       onAnimationEnd={onDone}
       data-ocid="welcome.overlay"
     >
-      {/* Logo */}
       <div
         className="w-20 h-20 rounded-3xl flex items-center justify-center text-white font-bold text-4xl mb-8"
         style={{
@@ -91,8 +88,6 @@ function WelcomeOverlay({ onDone }: { onDone: () => void }) {
       >
         S
       </div>
-
-      {/* Text */}
       <h1
         className="text-3xl font-bold text-white text-center tracking-widest uppercase mb-3"
         style={{ letterSpacing: "0.14em" }}
@@ -109,6 +104,40 @@ function WelcomeOverlay({ onDone }: { onDone: () => void }) {
   );
 }
 
+// ── Data Reset (runs once at module load, before any React renders) ──────────
+// Clears all video/history/upload data while preserving authUser + preferences.
+function applyDataReset() {
+  const RESET_VERSION = "reset_v2";
+  if (localStorage.getItem("_dataReset") === RESET_VERSION) return;
+
+  const keep = new Set([
+    "authUser",
+    "visited",
+    "notifSettings",
+    "privacySettings",
+    "videoQuality",
+    "autoplay",
+    "darkMode",
+    "_dataReset",
+  ]);
+
+  const toDelete: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && !keep.has(key)) {
+      toDelete.push(key);
+    }
+  }
+  for (const k of toDelete) {
+    localStorage.removeItem(k);
+  }
+
+  localStorage.setItem("_dataReset", RESET_VERSION);
+}
+
+// Run immediately when the module loads — before any component mounts
+applyDataReset();
+
 function AppContent() {
   const { authUser } = useAuth();
   const [route, setRoute] = useState<Route>("home");
@@ -118,7 +147,6 @@ function AppContent() {
   const [showWelcome, setShowWelcome] = useState(false);
   const welcomeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Notifications
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifCount, setNotifCount] = useState(() => {
     try {
@@ -164,7 +192,6 @@ function AppContent() {
     setNotifCount(list.filter((n) => !n.read).length);
   }
 
-  // Close panel when clicking outside
   useEffect(() => {
     if (!notifOpen) return;
     function handleOutside(e: MouseEvent) {
@@ -182,7 +209,6 @@ function AppContent() {
     return () => window.removeEventListener("refreshVideos", handler);
   }, [refreshVideos]);
 
-  // Cleanup welcome timer on unmount
   useEffect(() => {
     return () => {
       if (welcomeTimerRef.current) clearTimeout(welcomeTimerRef.current);
@@ -194,9 +220,7 @@ function AppContent() {
       <LoginPage
         onSuccess={() => {
           setRoute("home");
-          // First-time only: request permissions
           requestFirstTimePermissions();
-          // Welcome overlay after 3s
           welcomeTimerRef.current = setTimeout(() => {
             setShowWelcome(true);
           }, 3000);
@@ -230,7 +254,6 @@ function AppContent() {
         onBellClick={handleBellClick}
       />
 
-      {/* ── Notifications Panel ── */}
       {notifOpen && (
         <div
           ref={panelRef}
@@ -247,7 +270,6 @@ function AppContent() {
           }}
           data-ocid="notifications.panel"
         >
-          {/* Header */}
           <div
             className="flex items-center justify-between px-4 py-3 shrink-0"
             style={{ borderBottom: "1px solid oklch(0.24 0.006 264)" }}
@@ -268,7 +290,6 @@ function AppContent() {
             )}
           </div>
 
-          {/* List */}
           <div className="overflow-y-auto flex-1">
             {notifList.length === 0 ? (
               <div
@@ -400,10 +421,8 @@ function AppContent() {
       />
       <Toaster />
 
-      {/* Welcome overlay */}
       {showWelcome && <WelcomeOverlay onDone={() => setShowWelcome(false)} />}
 
-      {/* Suppress unused var warnings for design tokens */}
       <span style={{ display: "none", color: CARD_BG }} />
     </div>
   );
