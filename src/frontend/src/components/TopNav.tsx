@@ -11,38 +11,63 @@ interface TopNavProps {
 }
 
 const LOGO_STYLES = `
+  .logo-wrap {
+    position: relative;
+    display: inline-block;
+  }
+
   .logo-seasonal {
     font-weight: 900;
     font-size: 22px;
     letter-spacing: 1px;
+    position: relative;
+    display: inline-block;
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    position: relative;
-    display: inline-block;
-    animation: glowPulse 2.5s ease-in-out infinite;
+
+    text-shadow:
+      0 1px 0 #000,
+      0 2px 0 #000,
+      0 3px 2px rgba(0,0,0,0.4),
+      0 6px 10px rgba(0,0,0,0.6),
+      0 10px 20px rgba(0,0,0,0.8);
   }
 
-  /* Default / winter */
-  .logo-seasonal {
+  /* Soft glow ghost — NOT a box */
+  .logo-seasonal::after {
+    content: "SUB PREMIUM";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: blur(8px);
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  /* Seasonal gradient — default winter */
+  .logo-seasonal,
+  .logo-seasonal::after {
     background: linear-gradient(45deg, #cceeff, #ffffff);
   }
-  [data-season="spring"] .logo-seasonal {
+  [data-season="spring"] .logo-seasonal,
+  [data-season="spring"] .logo-seasonal::after {
     background: linear-gradient(45deg, #7CFC00, #FF69B4);
   }
-  [data-season="summer"] .logo-seasonal {
+  [data-season="summer"] .logo-seasonal,
+  [data-season="summer"] .logo-seasonal::after {
     background: linear-gradient(45deg, #FFD700, #FF4500);
   }
-  [data-season="fall"] .logo-seasonal {
+  [data-season="fall"] .logo-seasonal,
+  [data-season="fall"] .logo-seasonal::after {
     background: linear-gradient(45deg, #FF8C00, #8B4513);
   }
-  [data-season="winter"] .logo-seasonal {
+  [data-season="winter"] .logo-seasonal,
+  [data-season="winter"] .logo-seasonal::after {
     background: linear-gradient(45deg, #cceeff, #ffffff);
-  }
-
-  @keyframes glowPulse {
-    0%,100% { filter: drop-shadow(0 0 4px rgba(255,255,255,0.3)); }
-    50%      { filter: drop-shadow(0 0 12px rgba(255,255,255,0.8)); }
   }
 
   /* Winter snow */
@@ -57,6 +82,8 @@ const LOGO_STYLES = `
     animation: snow 6s linear infinite;
     -webkit-text-fill-color: white;
     background: none;
+    filter: none;
+    pointer-events: none;
   }
 
   /* Spring blossom */
@@ -71,6 +98,8 @@ const LOGO_STYLES = `
     animation: blossom 6s linear infinite;
     -webkit-text-fill-color: initial;
     background: none;
+    filter: none;
+    pointer-events: none;
   }
 
   /* Fall leaves */
@@ -84,6 +113,8 @@ const LOGO_STYLES = `
     animation: leafFall 6s linear infinite;
     -webkit-text-fill-color: initial;
     background: none;
+    filter: none;
+    pointer-events: none;
   }
 
   @keyframes snow {
@@ -125,7 +156,6 @@ function detectSeason() {
       document.body.setAttribute("data-season", season);
     },
     () => {
-      // Fallback: detect by month only (northern hemisphere assumed)
       const month = new Date().getMonth();
       let season = "winter";
       if (month >= 2 && month <= 4) season = "spring";
@@ -172,7 +202,9 @@ export default function TopNav({
         >
           S
         </div>
-        <span className="logo-seasonal">SUB PREMIUM</span>
+        <div className="logo-wrap">
+          <span className="logo-seasonal">SUB PREMIUM</span>
+        </div>
       </div>
       <div className="flex items-center gap-3 shrink-0">
         <button
