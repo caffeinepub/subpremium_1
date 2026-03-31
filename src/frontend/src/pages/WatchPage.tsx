@@ -116,6 +116,13 @@ interface WatchPageProps {
 const SPEED_OPTIONS = [0.5, 1, 1.5, 2];
 const STATIC_QUALITY_OPTIONS = ["Auto", "1080p", "720p"];
 
+function formatTime(s: number): string {
+  if (!s || !Number.isFinite(s)) return "0:00";
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
 export default function WatchPage({
   video: initialVideo,
   allVideos,
@@ -150,6 +157,8 @@ export default function WatchPage({
 
   // Play/pause state
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   // Autoplay preference
   const [autoplay, setAutoplay] = useState<boolean>(
@@ -362,6 +371,15 @@ export default function WatchPage({
     return () => el.removeEventListener("volumechange", syncMute);
   }, []);
 
+  // Sync duration state on metadata load
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    const onMeta = () => setDuration(el.duration || 0);
+    el.addEventListener("loadedmetadata", onMeta);
+    return () => el.removeEventListener("loadedmetadata", onMeta);
+  }, []);
+
   // Sync isPlaying state with native video play/pause events
   useEffect(() => {
     const el = videoRef.current;
@@ -398,6 +416,8 @@ export default function WatchPage({
   const handleTimeUpdate = useCallback(() => {
     const el = videoRef.current;
     if (!el || !el.duration) return;
+    setCurrentTime(el.currentTime);
+    setDuration(el.duration);
     const pct = (el.currentTime / el.duration) * 100;
     localStorage.setItem(
       `watch_${video.id}`,
@@ -1045,151 +1065,228 @@ export default function WatchPage({
             </div>
           </div>
 
-          {/* Center Play/Pause */}
-          <button
-            type="button"
-            className="absolute flex items-center justify-center w-14 h-14 rounded-full active:scale-95 transition-transform"
+          {/* Center controls row: rewind | play/pause | forward */}
+          <div
             style={{
+              position: "absolute",
               top: "50%",
               left: "50%",
               transform: "translate(-50%, -50%)",
-              background: "rgba(0,0,0,0.6)",
-              backdropFilter: "blur(4px)",
-              border: "1px solid rgba(255,255,255,0.15)",
-              pointerEvents: "auto",
-              touchAction: "manipulation",
+              display: "flex",
+              alignItems: "center",
+              gap: 24,
+              zIndex: 10,
+              pointerEvents: "none",
             }}
-            onClick={(e) => {
-              e.stopPropagation();
-              togglePlay();
-              resetHideTimer();
-            }}
-            aria-label={isPlaying ? "Pause" : "Play"}
-            data-ocid="watch.play_pause_button"
           >
-            {isPlaying ? (
+            {/* Rewind 10s */}
+            <button
+              type="button"
+              className="flex items-center justify-center w-12 h-12 rounded-full active:scale-95 transition-transform"
+              style={{
+                background: "rgba(0,0,0,0.55)",
+                backdropFilter: "blur(4px)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                pointerEvents: "auto",
+                touchAction: "manipulation",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                const el = videoRef.current;
+                if (el) el.currentTime = Math.max(0, el.currentTime - 10);
+                resetHideTimer();
+              }}
+              aria-label="Rewind 10 seconds"
+              data-ocid="watch.seek_back_button"
+            >
               <svg
                 width="24"
                 height="24"
                 viewBox="0 0 24 24"
-                fill="white"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 aria-hidden="true"
               >
-                <rect x="6" y="4" width="4" height="16" rx="1" />
-                <rect x="14" y="4" width="4" height="16" rx="1" />
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 .49-4.99" />
+                <text
+                  x="8"
+                  y="15"
+                  fontSize="7"
+                  fill="white"
+                  stroke="none"
+                  fontWeight="bold"
+                >
+                  10
+                </text>
               </svg>
-            ) : (
+            </button>
+
+            {/* Play/Pause */}
+            <button
+              type="button"
+              className="flex items-center justify-center w-14 h-14 rounded-full active:scale-95 transition-transform"
+              style={{
+                background: "rgba(0,0,0,0.6)",
+                backdropFilter: "blur(4px)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                pointerEvents: "auto",
+                touchAction: "manipulation",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePlay();
+                resetHideTimer();
+              }}
+              aria-label={isPlaying ? "Pause" : "Play"}
+              data-ocid="watch.play_pause_button"
+            >
+              {isPlaying ? (
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="white"
+                  aria-hidden="true"
+                >
+                  <rect x="6" y="4" width="4" height="16" rx="1" />
+                  <rect x="14" y="4" width="4" height="16" rx="1" />
+                </svg>
+              ) : (
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="white"
+                  aria-hidden="true"
+                >
+                  <polygon points="5,3 19,12 5,21" />
+                </svg>
+              )}
+            </button>
+
+            {/* Forward 10s */}
+            <button
+              type="button"
+              className="flex items-center justify-center w-12 h-12 rounded-full active:scale-95 transition-transform"
+              style={{
+                background: "rgba(0,0,0,0.55)",
+                backdropFilter: "blur(4px)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                pointerEvents: "auto",
+                touchAction: "manipulation",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                const el = videoRef.current;
+                if (el)
+                  el.currentTime = Math.min(
+                    el.duration || Number.POSITIVE_INFINITY,
+                    el.currentTime + 10,
+                  );
+                resetHideTimer();
+              }}
+              aria-label="Forward 10 seconds"
+              data-ocid="watch.seek_forward_button"
+            >
               <svg
                 width="24"
                 height="24"
                 viewBox="0 0 24 24"
-                fill="white"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 aria-hidden="true"
               >
-                <polygon points="5,3 19,12 5,21" />
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-.49-4.99" />
+                <text
+                  x="8"
+                  y="15"
+                  fontSize="7"
+                  fill="white"
+                  stroke="none"
+                  fontWeight="bold"
+                >
+                  10
+                </text>
               </svg>
-            )}
-          </button>
+            </button>
+          </div>
 
-          {/* Seek Back 10s */}
-          <button
-            type="button"
-            className="absolute flex items-center justify-center w-11 h-11 rounded-full active:scale-95 transition-transform"
+          {/* Progress bar + time at bottom */}
+          <div
             style={{
-              bottom: 56,
-              left: "calc(50% - 80px)",
-              background: "rgba(0,0,0,0.55)",
-              backdropFilter: "blur(4px)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              pointerEvents: "auto",
-              touchAction: "manipulation",
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              padding: "8px 12px 10px",
+              background:
+                "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%)",
+              pointerEvents: "none",
+              zIndex: 10,
             }}
-            onClick={(e) => {
-              e.stopPropagation();
-              const el = videoRef.current;
-              if (el) el.currentTime = Math.max(0, el.currentTime - 10);
-              resetHideTimer();
-            }}
-            aria-label="Seek back 10 seconds"
-            data-ocid="watch.seek_back_button"
           >
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+            {/* Time labels */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: 4,
+              }}
             >
-              <polyline points="1 4 1 10 7 10" />
-              <path d="M3.51 15a9 9 0 1 0 .49-4.99" />
-              <text
-                x="8"
-                y="15"
-                fontSize="7"
-                fill="white"
-                stroke="none"
-                fontWeight="bold"
+              <span
+                style={{
+                  color: "rgba(255,255,255,0.9)",
+                  fontSize: 11,
+                  fontVariantNumeric: "tabular-nums",
+                }}
               >
-                10
-              </text>
-            </svg>
-          </button>
-
-          {/* Seek Forward 10s */}
-          <button
-            type="button"
-            className="absolute flex items-center justify-center w-11 h-11 rounded-full active:scale-95 transition-transform"
-            style={{
-              bottom: 56,
-              left: "calc(50% + 36px)",
-              background: "rgba(0,0,0,0.55)",
-              backdropFilter: "blur(4px)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              pointerEvents: "auto",
-              touchAction: "manipulation",
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              const el = videoRef.current;
-              if (el)
-                el.currentTime = Math.min(
-                  el.duration || Number.POSITIVE_INFINITY,
-                  el.currentTime + 10,
-                );
-              resetHideTimer();
-            }}
-            aria-label="Seek forward 10 seconds"
-            data-ocid="watch.seek_forward_button"
-          >
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <polyline points="23 4 23 10 17 10" />
-              <path d="M20.49 15a9 9 0 1 1-.49-4.99" />
-              <text
-                x="8"
-                y="15"
-                fontSize="7"
-                fill="white"
-                stroke="none"
-                fontWeight="bold"
+                {formatTime(currentTime)}
+              </span>
+              <span
+                style={{
+                  color: "rgba(255,255,255,0.7)",
+                  fontSize: 11,
+                  fontVariantNumeric: "tabular-nums",
+                }}
               >
-                10
-              </text>
-            </svg>
-          </button>
+                -{formatTime(Math.max(0, duration - currentTime))}
+              </span>
+            </div>
+            {/* Seek slider */}
+            <input
+              type="range"
+              min={0}
+              max={duration || 100}
+              step={0.5}
+              value={currentTime}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                const el = videoRef.current;
+                if (el) el.currentTime = val;
+                setCurrentTime(val);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              style={{
+                width: "100%",
+                height: 3,
+                accentColor: "oklch(0.548 0.222 27)",
+                cursor: "pointer",
+                pointerEvents: "auto",
+                touchAction: "none",
+              }}
+              aria-label="Seek"
+              data-ocid="watch.seek_slider"
+            />
+          </div>
         </div>
       </div>
 
