@@ -14,6 +14,14 @@ const LOGO_STYLES = `
   .logo-wrap {
     position: relative;
     display: inline-block;
+    background: none !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .logo-wrap * {
+    background: none !important;
+    background-color: transparent !important;
   }
 
   .logo-seasonal {
@@ -22,52 +30,16 @@ const LOGO_STYLES = `
     letter-spacing: 1px;
     position: relative;
     display: inline-block;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-
+    color: #fff;
+    background: none !important;
+    background-color: transparent !important;
+    -webkit-text-fill-color: #fff;
     text-shadow:
-      0 1px 0 #000,
-      0 2px 0 #000,
-      0 3px 2px rgba(0,0,0,0.4),
-      0 6px 10px rgba(0,0,0,0.6),
-      0 10px 20px rgba(0,0,0,0.8);
-  }
-
-  /* Soft glow ghost — NOT a box */
-  .logo-seasonal::after {
-    content: "SUB PREMIUM";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    filter: blur(8px);
-    opacity: 0.4;
-    pointer-events: none;
-  }
-
-  /* Seasonal gradient — default winter */
-  .logo-seasonal,
-  .logo-seasonal::after {
-    background: linear-gradient(45deg, #cceeff, #ffffff);
-  }
-  [data-season="spring"] .logo-seasonal,
-  [data-season="spring"] .logo-seasonal::after {
-    background: linear-gradient(45deg, #7CFC00, #FF69B4);
-  }
-  [data-season="summer"] .logo-seasonal,
-  [data-season="summer"] .logo-seasonal::after {
-    background: linear-gradient(45deg, #FFD700, #FF4500);
-  }
-  [data-season="fall"] .logo-seasonal,
-  [data-season="fall"] .logo-seasonal::after {
-    background: linear-gradient(45deg, #FF8C00, #8B4513);
-  }
-  [data-season="winter"] .logo-seasonal,
-  [data-season="winter"] .logo-seasonal::after {
-    background: linear-gradient(45deg, #cceeff, #ffffff);
+      0 1px 0 #999,
+      0 2px 0 #888,
+      0 3px 0 #777,
+      0 4px 4px rgba(0,0,0,0.4),
+      0 8px 12px rgba(0,0,0,0.6);
   }
 
   /* Winter snow */
@@ -78,10 +50,11 @@ const LOGO_STYLES = `
     left: 0;
     width: 100%;
     font-size: 10px;
+    color: white;
+    -webkit-text-fill-color: white;
+    background: none !important;
     opacity: 0.6;
     animation: snow 6s linear infinite;
-    -webkit-text-fill-color: white;
-    background: none;
     filter: none;
     pointer-events: none;
   }
@@ -94,10 +67,10 @@ const LOGO_STYLES = `
     left: 0;
     width: 100%;
     font-size: 12px;
+    -webkit-text-fill-color: initial;
+    background: none !important;
     opacity: 0.7;
     animation: blossom 6s linear infinite;
-    -webkit-text-fill-color: initial;
-    background: none;
     filter: none;
     pointer-events: none;
   }
@@ -109,10 +82,10 @@ const LOGO_STYLES = `
     bottom: -6px;
     right: 0;
     font-size: 12px;
+    -webkit-text-fill-color: initial;
+    background: none !important;
     opacity: 0.6;
     animation: leafFall 6s linear infinite;
-    -webkit-text-fill-color: initial;
-    background: none;
     filter: none;
     pointer-events: none;
   }
