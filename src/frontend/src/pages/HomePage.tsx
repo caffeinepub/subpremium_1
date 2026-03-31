@@ -16,30 +16,39 @@ const RAINBOW_CSS = `
   position: relative;
   border-radius: 20px;
   background: #111;
-  overflow: visible;
+  overflow: hidden;
 }
 .rainbow-search-bar::before {
   content: "";
   position: absolute;
-  inset: -2px;
-  border-radius: 20px;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
   background: linear-gradient(90deg, red, orange, yellow, green, cyan, blue, violet, red);
-  background-size: 300%;
-  animation: rainbow-glow 6s linear infinite;
-  filter: blur(6px);
-  z-index: 0;
+  background-size: 200% 100%;
+  animation: moveLine 4s linear infinite;
+  filter: none;
+  box-shadow: none;
+  z-index: 3;
 }
 .rainbow-search-bar::after {
   content: "";
   position: absolute;
-  inset: 2px;
-  background: #111;
-  border-radius: 18px;
-  z-index: 1;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(90deg, red, orange, yellow, green, cyan, blue, violet, red);
+  background-size: 200% 100%;
+  animation: moveLine 4s linear infinite reverse;
+  filter: none;
+  box-shadow: none;
+  z-index: 3;
 }
-@keyframes rainbow-glow {
-  from { background-position: 0%; }
-  to { background-position: 300%; }
+@keyframes moveLine {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
 }
 `;
 
@@ -197,7 +206,7 @@ export default function HomePage({
           <div
             style={{
               position: "relative",
-              zIndex: 2,
+              zIndex: 4,
               display: "flex",
               alignItems: "center",
               padding: "12px",
