@@ -19,27 +19,24 @@ const LOGO_STYLES = `
     box-shadow: none !important;
   }
 
-  .logo-wrap * {
-    background: none !important;
-    background-color: transparent !important;
-  }
-
   .logo-seasonal {
     font-weight: 900;
     font-size: 22px;
     letter-spacing: 1px;
     position: relative;
     display: inline-block;
-    color: #fff;
     background: none !important;
     background-color: transparent !important;
-    -webkit-text-fill-color: #fff;
+    -webkit-text-fill-color: unset;
+    color: #FFD700;
     text-shadow:
-      0 1px 0 #999,
-      0 2px 0 #888,
-      0 3px 0 #777,
+      0 1px 0 #e6c200,
+      0 2px 0 #ccac00,
+      0 3px 0 #b89600,
       0 4px 4px rgba(0,0,0,0.4),
-      0 8px 12px rgba(0,0,0,0.6);
+      0 8px 12px rgba(0,0,0,0.6),
+      0 0 6px rgba(255, 0, 0, 0.25),
+      0 0 8px rgba(0, 150, 255, 0.25);
   }
 
   /* Winter snow */
