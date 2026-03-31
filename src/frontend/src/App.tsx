@@ -23,7 +23,8 @@ export type Route =
   | "settings"
   | "profile"
   | "login"
-  | "watch";
+  | "watch"
+  | "dashboard";
 
 interface Notification {
   id: string;
@@ -105,7 +106,6 @@ function WelcomeOverlay({ onDone }: { onDone: () => void }) {
 }
 
 // ── Data Reset (runs once at module load, before any React renders) ──────────
-// Clears all video/history/upload data while preserving authUser + preferences.
 function applyDataReset() {
   const RESET_VERSION = "reset_v2";
   if (localStorage.getItem("_dataReset") === RESET_VERSION) return;
@@ -135,7 +135,6 @@ function applyDataReset() {
   localStorage.setItem("_dataReset", RESET_VERSION);
 }
 
-// Run immediately when the module loads — before any component mounts
 applyDataReset();
 
 function AppContent() {
@@ -385,7 +384,10 @@ function AppContent() {
         )}
         {route === "history" && (
           <div key="history" className="h-full">
-            <HistoryPage onVideoSelect={handleVideoSelect} />
+            <HistoryPage
+              onVideoSelect={handleVideoSelect}
+              setRoute={(r) => setRoute(r as Route)}
+            />
           </div>
         )}
         {route === "menu" && (
@@ -401,7 +403,7 @@ function AppContent() {
             />
           </div>
         )}
-        {route === "profile" && (
+        {(route === "profile" || route === "dashboard") && (
           <div key="profile" className="px-4">
             <ProfilePage
               onBack={() => setRoute("home")}

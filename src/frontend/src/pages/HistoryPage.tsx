@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 
 interface HistoryPageProps {
   onVideoSelect: (video: Video) => void;
+  setRoute: (route: string) => void;
 }
 
 const TABS = ["All", "Videos", "Watched", "Liked"] as const;
 type Tab = (typeof TABS)[number];
 
 function formatProgress(seconds: number, duration: string): number {
-  // Convert duration string like "12:34" to seconds
   const parts = duration.split(":").map(Number);
   let total = 0;
   if (parts.length === 2) total = parts[0] * 60 + parts[1];
@@ -26,12 +26,36 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export default function HistoryPage({ onVideoSelect }: HistoryPageProps) {
+export default function HistoryPage({
+  onVideoSelect,
+  setRoute,
+}: HistoryPageProps) {
   const [allHistory, setAllHistory] = useState<Video[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("All");
+  const [myVideos, setMyVideos] = useState<any[]>([]);
 
   useEffect(() => {
-    // Load from history_* keys (individual entries with timestamps)
+    // Load current user's videos
+    try {
+      const user = JSON.parse(localStorage.getItem("authUser") || "null");
+      if (user) {
+        const videos = Object.keys(localStorage)
+          .filter((k) => k.startsWith("video_"))
+          .map((k) => {
+            try {
+              return JSON.parse(localStorage.getItem(k)!);
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean)
+          .filter((v: any) => v.ownerId === user.id)
+          .slice(0, 5);
+        setMyVideos(videos);
+      }
+    } catch {}
+
+    // Load history
     const fromKeys: Video[] = Object.keys(localStorage)
       .filter((k) => k.startsWith("history_"))
       .map((k) => {
@@ -44,13 +68,11 @@ export default function HistoryPage({ onVideoSelect }: HistoryPageProps) {
       .filter(Boolean)
       .sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
 
-    // Also load from legacy "history" array key
     let legacy: Video[] = [];
     try {
       legacy = JSON.parse(localStorage.getItem("history") || "[]");
     } catch {}
 
-    // Merge, dedup by id, prefer history_* entries
     const seen = new Set<string>();
     const merged: Video[] = [];
     for (const v of [...fromKeys, ...legacy]) {
@@ -79,6 +101,156 @@ export default function HistoryPage({ onVideoSelect }: HistoryPageProps) {
 
   return (
     <div className="animate-page-in pb-4" data-ocid="history.section">
+      {/* Your Videos section */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "16px 16px 8px",
+        }}
+      >
+        <h3 style={{ color: "#fff", fontWeight: 700, fontSize: 16, margin: 0 }}>
+          Your videos
+        </h3>
+        <button
+          type="button"
+          data-ocid="history.dashboard.button"
+          onClick={() => setRoute("dashboard")}
+          style={{
+            background: "none",
+            border: "none",
+            color: "oklch(0.548 0.222 27)",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            padding: "4px 8px",
+          }}
+        >
+          View all
+        </button>
+      </div>
+
+      {/* Horizontal scroll row */}
+      {myVideos.length > 0 ? (
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            overflowX: "auto",
+            padding: "0 16px 16px",
+            scrollbarWidth: "none",
+          }}
+          data-ocid="history.videos.list"
+        >
+          {myVideos.map((v: any, i: number) => (
+            <button
+              key={v.id}
+              type="button"
+              data-ocid={`history.videos.item.${i + 1}`}
+              onClick={() => onVideoSelect(v as Video)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                flexShrink: 0,
+                width: 140,
+                textAlign: "left",
+              }}
+            >
+              <div
+                style={{
+                  width: 140,
+                  aspectRatio: "16/9",
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  background: "oklch(0.18 0.005 264)",
+                  marginBottom: 6,
+                  position: "relative",
+                }}
+              >
+                {v.thumbnailUrl ? (
+                  <img
+                    src={v.thumbnailUrl}
+                    alt={v.title}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Play
+                      style={{
+                        color: "oklch(0.55 0.01 264)",
+                        width: 24,
+                        height: 24,
+                      }}
+                    />
+                  </div>
+                )}
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    left: 4,
+                    background: v.isPrivate
+                      ? "rgba(0,0,0,0.75)"
+                      : "rgba(255,50,50,0.85)",
+                    color: "#fff",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                  }}
+                >
+                  {v.isPrivate ? "Private" : "Public"}
+                </span>
+              </div>
+              <p
+                style={{
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  margin: 0,
+                  overflow: "hidden",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical" as const,
+                }}
+              >
+                {v.title}
+              </p>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div style={{ padding: "0 16px 16px" }}>
+          <p style={{ color: "oklch(0.55 0.01 264)", fontSize: 13, margin: 0 }}>
+            No videos uploaded yet
+          </p>
+        </div>
+      )}
+
+      {/* Divider */}
+      <div
+        style={{
+          height: 1,
+          background: "oklch(0.22 0.006 264)",
+          margin: "0 0 4px",
+        }}
+      />
+
       {/* Header */}
       <h1 className="text-lg font-bold text-white px-4 pt-4 pb-1">
         Watch History
@@ -157,11 +329,7 @@ export default function HistoryPage({ onVideoSelect }: HistoryPageProps) {
                 type="button"
                 className="w-full text-left active:opacity-80 transition-opacity"
                 data-ocid={`history.item.${i + 1}`}
-                onClick={() => {
-                  // Store resume time so player can pick it up
-                  // onVideoSelect navigates to the player
-                  onVideoSelect(video);
-                }}
+                onClick={() => onVideoSelect(video)}
                 style={{
                   display: "flex",
                   gap: 12,
@@ -215,7 +383,6 @@ export default function HistoryPage({ onVideoSelect }: HistoryPageProps) {
                     </div>
                   )}
 
-                  {/* Duration badge */}
                   {video.duration && (
                     <span
                       style={{
@@ -234,7 +401,6 @@ export default function HistoryPage({ onVideoSelect }: HistoryPageProps) {
                     </span>
                   )}
 
-                  {/* Progress bar */}
                   {progressPct > 0 && progressPct < 100 && (
                     <div
                       style={{
