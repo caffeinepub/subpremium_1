@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { AuthUser } from "@/context/AuthContext";
 import { Bell } from "lucide-react";
+import { useEffect } from "react";
 
 interface TopNavProps {
   authUser: AuthUser | null;
@@ -9,12 +10,142 @@ interface TopNavProps {
   onBellClick: () => void;
 }
 
+const LOGO_STYLES = `
+  .logo-seasonal {
+    font-weight: 900;
+    font-size: 22px;
+    letter-spacing: 1px;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    position: relative;
+    display: inline-block;
+    animation: glowPulse 2.5s ease-in-out infinite;
+  }
+
+  /* Default / winter */
+  .logo-seasonal {
+    background: linear-gradient(45deg, #cceeff, #ffffff);
+  }
+  [data-season="spring"] .logo-seasonal {
+    background: linear-gradient(45deg, #7CFC00, #FF69B4);
+  }
+  [data-season="summer"] .logo-seasonal {
+    background: linear-gradient(45deg, #FFD700, #FF4500);
+  }
+  [data-season="fall"] .logo-seasonal {
+    background: linear-gradient(45deg, #FF8C00, #8B4513);
+  }
+  [data-season="winter"] .logo-seasonal {
+    background: linear-gradient(45deg, #cceeff, #ffffff);
+  }
+
+  @keyframes glowPulse {
+    0%,100% { filter: drop-shadow(0 0 4px rgba(255,255,255,0.3)); }
+    50%      { filter: drop-shadow(0 0 12px rgba(255,255,255,0.8)); }
+  }
+
+  /* Winter snow */
+  [data-season="winter"] .logo-seasonal::before {
+    content: "❄ ❄ ❄";
+    position: absolute;
+    top: -6px;
+    left: 0;
+    width: 100%;
+    font-size: 10px;
+    opacity: 0.6;
+    animation: snow 6s linear infinite;
+    -webkit-text-fill-color: white;
+    background: none;
+  }
+
+  /* Spring blossom */
+  [data-season="spring"] .logo-seasonal::before {
+    content: "🌸 🌸 🌸";
+    position: absolute;
+    top: -6px;
+    left: 0;
+    width: 100%;
+    font-size: 12px;
+    opacity: 0.7;
+    animation: blossom 6s linear infinite;
+    -webkit-text-fill-color: initial;
+    background: none;
+  }
+
+  /* Fall leaves */
+  [data-season="fall"] .logo-seasonal::after {
+    content: "🍂 🍁";
+    position: absolute;
+    bottom: -6px;
+    right: 0;
+    font-size: 12px;
+    opacity: 0.6;
+    animation: leafFall 6s linear infinite;
+    -webkit-text-fill-color: initial;
+    background: none;
+  }
+
+  @keyframes snow {
+    0%   { transform: translateY(-5px); opacity: 0; }
+    50%  { opacity: 1; }
+    100% { transform: translateY(8px); opacity: 0; }
+  }
+  @keyframes blossom {
+    0%   { transform: translateY(-6px); opacity: 0; }
+    50%  { opacity: 1; }
+    100% { transform: translateY(10px); opacity: 0; }
+  }
+  @keyframes leafFall {
+    0%   { transform: translateY(-5px); opacity: 0; }
+    50%  { opacity: 1; }
+    100% { transform: translateY(10px); opacity: 0; }
+  }
+`;
+
+function detectSeason() {
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const month = new Date().getMonth();
+      const isNorth = lat >= 0;
+      let season = "winter";
+
+      if (isNorth) {
+        if (month >= 2 && month <= 4) season = "spring";
+        else if (month >= 5 && month <= 7) season = "summer";
+        else if (month >= 8 && month <= 10) season = "fall";
+      } else {
+        if (month >= 2 && month <= 4) season = "fall";
+        else if (month >= 5 && month <= 7) season = "winter";
+        else if (month >= 8 && month <= 10) season = "spring";
+        else season = "summer";
+      }
+
+      document.body.setAttribute("data-season", season);
+    },
+    () => {
+      // Fallback: detect by month only (northern hemisphere assumed)
+      const month = new Date().getMonth();
+      let season = "winter";
+      if (month >= 2 && month <= 4) season = "spring";
+      else if (month >= 5 && month <= 7) season = "summer";
+      else if (month >= 8 && month <= 10) season = "fall";
+      document.body.setAttribute("data-season", season);
+    },
+  );
+}
+
 export default function TopNav({
   authUser,
   onAvatarClick,
   notificationCount,
   onBellClick,
 }: TopNavProps) {
+  useEffect(() => {
+    detectSeason();
+  }, []);
+
   const initials = authUser
     ? (authUser.name || authUser.username)
         .split(" ")
@@ -33,6 +164,7 @@ export default function TopNav({
       }}
       data-ocid="topnav.panel"
     >
+      <style>{LOGO_STYLES}</style>
       <div className="flex items-center gap-2 flex-1">
         <div
           className="w-7 h-7 rounded-md flex items-center justify-center text-white font-bold text-sm shrink-0"
@@ -40,12 +172,7 @@ export default function TopNav({
         >
           S
         </div>
-        <span
-          className="font-bold text-white text-sm tracking-widest uppercase"
-          style={{ letterSpacing: "0.12em" }}
-        >
-          SUB PREMIUM
-        </span>
+        <span className="logo-seasonal">SUB PREMIUM</span>
       </div>
       <div className="flex items-center gap-3 shrink-0">
         <button
