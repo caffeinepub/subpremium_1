@@ -1,3 +1,5 @@
+import { defaultStrategy, pollForResponse } from "@dfinity/agent";
+import { Principal } from "@dfinity/principal";
 import { type HttpAgent, isV3ResponseBody } from "@icp-sdk/core/agent";
 import { IDL } from "@icp-sdk/core/candid";
 
@@ -492,7 +494,25 @@ export class StorageClient {
       console.log("Certificate:", respone.certificate);
       return respone.certificate;
     }
-    throw new Error("Expected v3 response body");
+    // Fallback: poll for response on non-v3 boundary nodes
+    try {
+      const replyBytes = await pollForResponse(
+        this.agent as any,
+        Principal.fromText(this.backendCanisterId),
+        (result as any).requestId,
+        { strategy: defaultStrategy() },
+      );
+      const decoded = IDL.decode([IDL.Vec(IDL.Nat8)], replyBytes.reply);
+      const certArray = decoded[0] as number[];
+      console.log("Certificate (polled):", certArray);
+      return new Uint8Array(certArray);
+    } catch (pollError) {
+      throw new Error(
+        `Failed to get storage certificate: ${
+          pollError instanceof Error ? pollError.message : String(pollError)
+        }`,
+      );
+    }
   }
 
   public async putFile(
@@ -524,6 +544,43 @@ export class StorageClient {
       blobHashTree,
       this.bucket,
       file.size,
+      this.backendCanisterId,
+      this.projectId,
+      certificateBytes,
+    );
+    await this.parallelUpload(
+      chunks,
+      chunkHashes,
+      blobRootHash,
+      httpHeaders,
+      onProgress,
+    );
+    return { hash: hashString };
+  }
+
+  public async putFileBlob(
+    blob: Blob,
+    onProgress?: (percentage: number) => void,
+  ): Promise<{ hash: string }> {
+    const httpHeaders: Headers = {
+      "Content-Type": "application/octet-stream",
+    };
+    const fileHeaders: Headers = {
+      "Content-Type": "application/octet-stream",
+      "Content-Length": blob.size.toString(),
+    };
+
+    const { chunks, chunkHashes, blobHashTree } =
+      await this.processFileForUpload(blob, fileHeaders);
+    const blobRootHash = blobHashTree.tree.hash;
+    const hashString = blobRootHash.toShaString();
+
+    const certificateBytes = await this.getCertificate(hashString);
+
+    await this.storageGatewayClient.uploadBlobTree(
+      blobHashTree,
+      this.bucket,
+      blob.size,
       this.backendCanisterId,
       this.projectId,
       certificateBytes,

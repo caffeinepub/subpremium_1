@@ -156,10 +156,18 @@ export async function createActorWithConfig(
   const MOTOKO_DEDUPLICATION_SENTINEL = "!caf!";
 
   const uploadFile = async (file: ExternalBlob): Promise<Uint8Array> => {
-    const { hash } = await storageClient.putFile(
-      await file.getBytes(),
-      file.onProgress,
-    );
+    const rawBlob = file.getRawBlob();
+    let hash: string;
+    if (rawBlob) {
+      // Memory-safe path: uses blob.slice() internally, never loads full file
+      ({ hash } = await storageClient.putFileBlob(rawBlob, file.onProgress));
+    } else {
+      // Fallback for ExternalBlob.fromBytes() (thumbnail, etc.)
+      ({ hash } = await storageClient.putFile(
+        await file.getBytes(),
+        file.onProgress,
+      ));
+    }
     return new TextEncoder().encode(MOTOKO_DEDUPLICATION_SENTINEL + hash);
   };
 
