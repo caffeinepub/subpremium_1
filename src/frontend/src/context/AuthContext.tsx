@@ -6,6 +6,9 @@ export interface AuthUser {
   name: string;
   avatarUrl?: string;
   password?: string;
+  recoveryAnswer?: string;
+  email?: string;
+  verified?: boolean;
 }
 
 interface AuthContextValue {

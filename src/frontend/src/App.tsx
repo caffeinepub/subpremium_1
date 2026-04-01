@@ -11,8 +11,11 @@ import HomePage from "@/pages/HomePage";
 import LoginPage from "@/pages/LoginPage";
 import MenuPage from "@/pages/MenuPage";
 import ProfilePage from "@/pages/ProfilePage";
+import RecoverPage from "@/pages/RecoverPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import SettingsPage from "@/pages/SettingsPage";
 import UploadPage from "@/pages/UploadPage";
+import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import WatchPage from "@/pages/WatchPage";
 import { useEffect, useRef, useState } from "react";
 
@@ -25,7 +28,8 @@ export type Route =
   | "profile"
   | "login"
   | "watch"
-  | "dashboard";
+  | "dashboard"
+  | "recover";
 
 interface Notification {
   id: string;
@@ -139,7 +143,14 @@ function applyDataReset() {
 applyDataReset();
 
 function AppContent() {
-  const { authUser } = useAuth();
+  const { authUser, login } = useAuth();
+  const [showRecover, setShowRecover] = useState(false);
+  const [urlVerifyToken] = useState(
+    () => new URLSearchParams(window.location.search).get("verify") || "",
+  );
+  const [urlResetToken] = useState(
+    () => new URLSearchParams(window.location.search).get("reset") || "",
+  );
   const [route, setRoute] = useState<Route>("home");
   const [searchQuery, setSearchQuery] = useState("");
   const [watchVideo, setWatchVideo] = useState<Video | null>(null);
@@ -215,7 +226,47 @@ function AppContent() {
     };
   }, []);
 
+  // Handle URL-based token flows (accessible from any auth state)
+  if (urlVerifyToken) {
+    return (
+      <VerifyEmailPage
+        token={urlVerifyToken}
+        onDone={() => {
+          window.history.replaceState({}, "", window.location.pathname);
+          window.location.reload();
+        }}
+      />
+    );
+  }
+
+  if (urlResetToken) {
+    return (
+      <ResetPasswordPage
+        token={urlResetToken}
+        onDone={() => {
+          window.history.replaceState({}, "", window.location.pathname);
+          window.location.reload();
+        }}
+        onSuccess={(user) => {
+          login(user);
+          window.history.replaceState({}, "", window.location.pathname);
+        }}
+      />
+    );
+  }
+
   if (!authUser) {
+    if (showRecover) {
+      return (
+        <RecoverPage
+          onBack={() => setShowRecover(false)}
+          onSuccess={(user) => {
+            login(user);
+            setShowRecover(false);
+          }}
+        />
+      );
+    }
     return (
       <LoginPage
         onSuccess={() => {
@@ -225,6 +276,7 @@ function AppContent() {
             setShowWelcome(true);
           }, 3000);
         }}
+        onForgotPassword={() => setShowRecover(true)}
       />
     );
   }

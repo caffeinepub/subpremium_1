@@ -2,32 +2,51 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
-import { Eye, EyeOff } from "lucide-react";
+import { CheckCircle, Copy, Eye, EyeOff, Mail } from "lucide-react";
 import { useState } from "react";
 
 interface LoginPageProps {
   onSuccess: () => void;
+  onForgotPassword: () => void;
 }
 
 type Tab = "signin" | "signup";
 
-export default function LoginPage({ onSuccess }: LoginPageProps) {
+function saveUser(u: object) {
+  const users = JSON.parse(localStorage.getItem("users") || "[]");
+  users.push(u);
+  localStorage.setItem("users", JSON.stringify(users));
+}
+
+export default function LoginPage({
+  onSuccess,
+  onForgotPassword,
+}: LoginPageProps) {
   const { login } = useAuth();
   const [tab, setTab] = useState<Tab>("signin");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [recoveryAnswer, setRecoveryAnswer] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [error, setError] = useState("");
+  const [verifyToken, setVerifyToken] = useState<string | null>(null);
+  const [verifyEmail, setVerifyEmail] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const resetForm = () => {
     setUsername("");
+    setEmail("");
     setPassword("");
     setConfirmPassword("");
+    setRecoveryAnswer("");
     setError("");
     setShowPw(false);
     setShowConfirmPw(false);
+    setVerifyToken(null);
+    setCopied(false);
   };
 
   const switchTab = (t: Tab) => {
@@ -54,6 +73,12 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
       setError("Invalid username or password.");
       return;
     }
+    if (user.verified === false) {
+      setError(
+        "Please verify your email before signing in. Check your verification link.",
+      );
+      return;
+    }
     login(user);
     onSuccess();
   };
@@ -69,6 +94,10 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
       setError("Username must be at least 3 characters.");
       return;
     }
+    if (!email.trim() || !email.includes("@")) {
+      setError("Please enter a valid email address.");
+      return;
+    }
     if (!password) {
       setError("Please enter a password.");
       return;
@@ -81,22 +110,140 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
       setError("Passwords do not match.");
       return;
     }
+    if (!recoveryAnswer.trim()) {
+      setError("Please enter a recovery answer.");
+      return;
+    }
+
     const users = JSON.parse(localStorage.getItem("users") || "[]");
     if (users.find((u: { username: string }) => u.username === uname)) {
       setError("Username already taken. Choose a different name.");
       return;
     }
+    if (users.find((u: { email: string }) => u.email === email.trim())) {
+      setError("An account with this email already exists.");
+      return;
+    }
+
     const newUser = {
       id: String(Date.now()),
       username: uname,
       name: uname,
+      email: email.trim(),
       password,
+      recoveryAnswer: recoveryAnswer.trim(),
+      verified: false,
     };
-    users.push(newUser);
-    localStorage.setItem("users", JSON.stringify(users));
-    login(newUser);
-    onSuccess();
+    saveUser(newUser);
+
+    const token = crypto.randomUUID();
+    localStorage.setItem(`verify_${token}`, newUser.id);
+    setVerifyToken(token);
+    setVerifyEmail(email.trim());
+    setError("");
   };
+
+  const copyToken = () => {
+    const url = `${window.location.origin}${window.location.pathname}?verify=${verifyToken}`;
+    navigator.clipboard.writeText(url).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const openVerifyLink = () => {
+    const url = `${window.location.origin}${window.location.pathname}?verify=${verifyToken}`;
+    window.location.href = url;
+  };
+
+  const RED = "oklch(0.548 0.222 27)";
+
+  if (verifyToken) {
+    return (
+      <div
+        className="fixed inset-0 flex items-center justify-center px-6 animate-page-in"
+        style={{ background: "oklch(0.148 0.004 264)" }}
+        data-ocid="login.verify_pending"
+      >
+        <div
+          className="w-full max-w-sm rounded-2xl p-8 flex flex-col gap-5"
+          style={{
+            background: "oklch(0.178 0.005 264)",
+            border: "1px solid oklch(0.24 0.006 264)",
+          }}
+        >
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center"
+              style={{ background: "oklch(0.22 0.006 264)" }}
+            >
+              <Mail className="w-7 h-7" style={{ color: RED }} />
+            </div>
+            <h1 className="text-xl font-bold text-foreground">
+              Check Your Email
+            </h1>
+            <p
+              className="text-sm leading-relaxed"
+              style={{ color: "oklch(0.55 0.01 264)" }}
+            >
+              A verification link has been sent to{" "}
+              <span className="text-white font-medium">{verifyEmail}</span>.
+              Click it to activate your account.
+            </p>
+          </div>
+
+          <div
+            className="rounded-xl p-4 flex flex-col gap-3"
+            style={{ background: "oklch(0.22 0.006 264)" }}
+          >
+            <p
+              className="text-xs font-semibold uppercase tracking-wider"
+              style={{ color: "oklch(0.45 0.008 264)" }}
+            >
+              Demo — Simulated Email Link
+            </p>
+            <code
+              className="text-xs break-all leading-relaxed"
+              style={{ color: "oklch(0.75 0.15 160)" }}
+            >
+              {window.location.origin}
+              {window.location.pathname}?verify={verifyToken}
+            </code>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                className="flex-1 h-9 rounded-lg text-sm font-semibold text-white active:scale-95 transition-transform"
+                style={{ background: RED }}
+                onClick={openVerifyLink}
+                data-ocid="login.verify_now_button"
+              >
+                <CheckCircle className="w-4 h-4 mr-1.5" />
+                Verify Now
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 px-3 rounded-lg text-sm active:scale-95 transition-transform"
+                onClick={copyToken}
+                data-ocid="login.copy_link_button"
+              >
+                <Copy className="w-4 h-4" />
+                {copied ? "Copied!" : "Copy"}
+              </Button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="text-sm text-center active:opacity-70 transition-opacity"
+            style={{ color: "oklch(0.55 0.01 264)" }}
+            onClick={resetForm}
+          >
+            Back to Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -116,17 +263,15 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-2xl"
             style={{
-              background: "oklch(0.548 0.222 27)",
+              background: RED,
               boxShadow: "0 4px 20px rgba(225,29,46,0.4)",
             }}
           >
             S
           </div>
-          <div className="text-center">
-            <h1 className="text-xl font-bold text-foreground tracking-tight">
-              SubPremium
-            </h1>
-          </div>
+          <h1 className="text-xl font-bold text-foreground tracking-tight">
+            SubPremium
+          </h1>
         </div>
 
         {/* Tabs */}
@@ -141,7 +286,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
               type="button"
               className="flex-1 py-2.5 text-sm font-semibold transition-all"
               style={{
-                background: tab === t ? "oklch(0.548 0.222 27)" : "transparent",
+                background: tab === t ? RED : "transparent",
                 color: tab === t ? "#fff" : "oklch(0.55 0.01 264)",
                 borderRadius: "0.75rem",
               }}
@@ -176,6 +321,27 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
               data-ocid="login.input"
             />
           </div>
+
+          {tab === "signup" && (
+            <div className="flex flex-col gap-1.5">
+              <Label
+                htmlFor="login-email"
+                className="text-sm font-medium text-foreground"
+              >
+                Email
+              </Label>
+              <Input
+                id="login-email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
+                autoComplete="email"
+                data-ocid="login.email_input"
+              />
+            </div>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <Label
@@ -215,40 +381,67 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
           </div>
 
           {tab === "signup" && (
-            <div className="flex flex-col gap-1.5">
-              <Label
-                htmlFor="login-confirm-password"
-                className="text-sm font-medium text-foreground"
-              >
-                Confirm Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="login-confirm-password"
-                  type={showConfirmPw ? "text" : "password"}
-                  placeholder="Confirm password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary pr-11"
-                  autoComplete="new-password"
-                  data-ocid="login.confirm_input"
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 active:scale-95 transition-transform"
-                  style={{ color: "oklch(0.55 0.01 264)" }}
-                  onClick={() => setShowConfirmPw((v) => !v)}
-                  tabIndex={-1}
-                  data-ocid="login.confirm_toggle"
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label
+                  htmlFor="login-confirm-password"
+                  className="text-sm font-medium text-foreground"
                 >
-                  {showConfirmPw ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
+                  Confirm Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="login-confirm-password"
+                    type={showConfirmPw ? "text" : "password"}
+                    placeholder="Confirm password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary pr-11"
+                    autoComplete="new-password"
+                    data-ocid="login.confirm_input"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 active:scale-95 transition-transform"
+                    style={{ color: "oklch(0.55 0.01 264)" }}
+                    onClick={() => setShowConfirmPw((v) => !v)}
+                    tabIndex={-1}
+                    data-ocid="login.confirm_toggle"
+                  >
+                    {showConfirmPw ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label
+                  htmlFor="login-recovery"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Recovery Answer{" "}
+                  <span
+                    className="font-normal"
+                    style={{ color: "oklch(0.55 0.01 264)" }}
+                  >
+                    (e.g. favorite color)
+                  </span>
+                </Label>
+                <Input
+                  id="login-recovery"
+                  type="text"
+                  placeholder="e.g. blue"
+                  value={recoveryAnswer}
+                  onChange={(e) => setRecoveryAnswer(e.target.value)}
+                  className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
+                  autoComplete="off"
+                  data-ocid="login.recovery_input"
+                />
+              </div>
+            </>
           )}
 
           {error && (
@@ -264,13 +457,25 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
             type="submit"
             className="h-11 rounded-xl font-semibold text-white mt-1 active:scale-95 transition-transform"
             style={{
-              background: "oklch(0.548 0.222 27)",
+              background: RED,
               boxShadow: "0 4px 16px rgba(225,29,46,0.35)",
             }}
             data-ocid="login.submit_button"
           >
             {tab === "signin" ? "Sign In" : "Create Account"}
           </Button>
+
+          {tab === "signin" && (
+            <button
+              type="button"
+              className="text-sm text-center active:opacity-70 transition-opacity"
+              style={{ color: "oklch(0.55 0.01 264)" }}
+              onClick={onForgotPassword}
+              data-ocid="login.forgot_password_button"
+            >
+              Forgot Password?
+            </button>
+          )}
         </form>
 
         <p
