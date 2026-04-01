@@ -5,6 +5,7 @@ export interface AuthUser {
   username: string;
   name: string;
   avatarUrl?: string;
+  password?: string;
 }
 
 interface AuthContextValue {

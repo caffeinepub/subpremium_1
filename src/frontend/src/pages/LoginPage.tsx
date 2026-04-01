@@ -9,27 +9,92 @@ interface LoginPageProps {
   onSuccess: () => void;
 }
 
+type Tab = "signin" | "signup";
+
 export default function LoginPage({ onSuccess }: LoginPageProps) {
   const { login } = useAuth();
+  const [tab, setTab] = useState<Tab>("signin");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const resetForm = () => {
+    setUsername("");
+    setPassword("");
+    setConfirmPassword("");
+    setError("");
+    setShowPw(false);
+    setShowConfirmPw(false);
+  };
+
+  const switchTab = (t: Tab) => {
+    setTab(t);
+    resetForm();
+  };
+
+  const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim()) {
-      setError("Please enter your username or email.");
+      setError("Please enter your username.");
       return;
     }
     if (!password.trim()) {
       setError("Please enter your password.");
       return;
     }
-    setError("");
-    const name = username.includes("@") ? username.split("@")[0] : username;
-    const id = name.toLowerCase().replace(/\s+/g, "_");
-    login({ id, username: name, name });
+    const users = JSON.parse(localStorage.getItem("users") || "[]");
+    const user = users.find(
+      (u: { username: string; password: string }) =>
+        u.username === username.trim() && u.password === password,
+    );
+    if (!user) {
+      setError("Invalid username or password.");
+      return;
+    }
+    login(user);
+    onSuccess();
+  };
+
+  const handleSignUp = (e: React.FormEvent) => {
+    e.preventDefault();
+    const uname = username.trim();
+    if (!uname) {
+      setError("Please enter a username.");
+      return;
+    }
+    if (uname.length < 3) {
+      setError("Username must be at least 3 characters.");
+      return;
+    }
+    if (!password) {
+      setError("Please enter a password.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    const users = JSON.parse(localStorage.getItem("users") || "[]");
+    if (users.find((u: { username: string }) => u.username === uname)) {
+      setError("Username already taken. Choose a different name.");
+      return;
+    }
+    const newUser = {
+      id: String(Date.now()),
+      username: uname,
+      name: uname,
+      password,
+    };
+    users.push(newUser);
+    localStorage.setItem("users", JSON.stringify(users));
+    login(newUser);
     onSuccess();
   };
 
@@ -61,28 +126,49 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
             <h1 className="text-xl font-bold text-foreground tracking-tight">
               SubPremium
             </h1>
-            <p
-              className="text-sm mt-1"
-              style={{ color: "oklch(0.55 0.01 264)" }}
-            >
-              Sign in to your account
-            </p>
           </div>
         </div>
 
+        {/* Tabs */}
+        <div
+          className="flex rounded-xl overflow-hidden"
+          style={{ background: "oklch(0.22 0.006 264)" }}
+          data-ocid="login.tab"
+        >
+          {(["signin", "signup"] as Tab[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              className="flex-1 py-2.5 text-sm font-semibold transition-all"
+              style={{
+                background: tab === t ? "oklch(0.548 0.222 27)" : "transparent",
+                color: tab === t ? "#fff" : "oklch(0.55 0.01 264)",
+                borderRadius: "0.75rem",
+              }}
+              onClick={() => switchTab(t)}
+              data-ocid={`login.${t}_tab`}
+            >
+              {t === "signin" ? "Sign In" : "Sign Up"}
+            </button>
+          ))}
+        </div>
+
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form
+          onSubmit={tab === "signin" ? handleSignIn : handleSignUp}
+          className="flex flex-col gap-4"
+        >
           <div className="flex flex-col gap-1.5">
             <Label
               htmlFor="login-username"
               className="text-sm font-medium text-foreground"
             >
-              Username or Email
+              Username
             </Label>
             <Input
               id="login-username"
               type="text"
-              placeholder="Enter username or email"
+              placeholder="Enter username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
@@ -106,7 +192,9 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary pr-11"
-                autoComplete="current-password"
+                autoComplete={
+                  tab === "signin" ? "current-password" : "new-password"
+                }
                 data-ocid="login.textarea"
               />
               <button
@@ -126,6 +214,43 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
             </div>
           </div>
 
+          {tab === "signup" && (
+            <div className="flex flex-col gap-1.5">
+              <Label
+                htmlFor="login-confirm-password"
+                className="text-sm font-medium text-foreground"
+              >
+                Confirm Password
+              </Label>
+              <div className="relative">
+                <Input
+                  id="login-confirm-password"
+                  type={showConfirmPw ? "text" : "password"}
+                  placeholder="Confirm password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary pr-11"
+                  autoComplete="new-password"
+                  data-ocid="login.confirm_input"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 active:scale-95 transition-transform"
+                  style={{ color: "oklch(0.55 0.01 264)" }}
+                  onClick={() => setShowConfirmPw((v) => !v)}
+                  tabIndex={-1}
+                  data-ocid="login.confirm_toggle"
+                >
+                  {showConfirmPw ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
           {error && (
             <p
               className="text-sm text-destructive"
@@ -144,7 +269,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
             }}
             data-ocid="login.submit_button"
           >
-            Sign In
+            {tab === "signin" ? "Sign In" : "Create Account"}
           </Button>
         </form>
 
