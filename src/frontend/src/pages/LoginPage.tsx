@@ -2,15 +2,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
-import { CheckCircle, Copy, Eye, EyeOff, Mail } from "lucide-react";
+import { saveToken } from "@/lib/authTokens";
+import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 
 interface LoginPageProps {
   onSuccess: () => void;
   onForgotPassword: () => void;
+  onVerifyNeeded: (userId: string) => void;
 }
 
 type Tab = "signin" | "signup";
+
+const RED = "oklch(0.548 0.222 27)";
 
 function saveUser(u: object) {
   const users = JSON.parse(localStorage.getItem("users") || "[]");
@@ -21,6 +25,7 @@ function saveUser(u: object) {
 export default function LoginPage({
   onSuccess,
   onForgotPassword,
+  onVerifyNeeded,
 }: LoginPageProps) {
   const { login } = useAuth();
   const [tab, setTab] = useState<Tab>("signin");
@@ -32,9 +37,6 @@ export default function LoginPage({
   const [showPw, setShowPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [error, setError] = useState("");
-  const [verifyToken, setVerifyToken] = useState<string | null>(null);
-  const [verifyEmail, setVerifyEmail] = useState("");
-  const [copied, setCopied] = useState(false);
 
   const resetForm = () => {
     setUsername("");
@@ -45,8 +47,6 @@ export default function LoginPage({
     setError("");
     setShowPw(false);
     setShowConfirmPw(false);
-    setVerifyToken(null);
-    setCopied(false);
   };
 
   const switchTab = (t: Tab) => {
@@ -74,9 +74,7 @@ export default function LoginPage({
       return;
     }
     if (user.verified === false) {
-      setError(
-        "Please verify your email before signing in. Check your verification link.",
-      );
+      setError("Please verify your email before signing in.");
       return;
     }
     login(user);
@@ -137,113 +135,15 @@ export default function LoginPage({
     saveUser(newUser);
 
     const token = crypto.randomUUID();
-    localStorage.setItem(`verify_${token}`, newUser.id);
-    setVerifyToken(token);
-    setVerifyEmail(email.trim());
-    setError("");
+    saveToken({
+      type: "verify",
+      token,
+      userId: newUser.id,
+      expires: Date.now() + 15 * 60 * 1000,
+    });
+
+    onVerifyNeeded(newUser.id);
   };
-
-  const copyToken = () => {
-    const url = `${window.location.origin}${window.location.pathname}?verify=${verifyToken}`;
-    navigator.clipboard.writeText(url).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const openVerifyLink = () => {
-    const url = `${window.location.origin}${window.location.pathname}?verify=${verifyToken}`;
-    window.location.href = url;
-  };
-
-  const RED = "oklch(0.548 0.222 27)";
-
-  if (verifyToken) {
-    return (
-      <div
-        className="fixed inset-0 flex items-center justify-center px-6 animate-page-in"
-        style={{ background: "oklch(0.148 0.004 264)" }}
-        data-ocid="login.verify_pending"
-      >
-        <div
-          className="w-full max-w-sm rounded-2xl p-8 flex flex-col gap-5"
-          style={{
-            background: "oklch(0.178 0.005 264)",
-            border: "1px solid oklch(0.24 0.006 264)",
-          }}
-        >
-          <div className="flex flex-col items-center gap-3 text-center">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center"
-              style={{ background: "oklch(0.22 0.006 264)" }}
-            >
-              <Mail className="w-7 h-7" style={{ color: RED }} />
-            </div>
-            <h1 className="text-xl font-bold text-foreground">
-              Check Your Email
-            </h1>
-            <p
-              className="text-sm leading-relaxed"
-              style={{ color: "oklch(0.55 0.01 264)" }}
-            >
-              A verification link has been sent to{" "}
-              <span className="text-white font-medium">{verifyEmail}</span>.
-              Click it to activate your account.
-            </p>
-          </div>
-
-          <div
-            className="rounded-xl p-4 flex flex-col gap-3"
-            style={{ background: "oklch(0.22 0.006 264)" }}
-          >
-            <p
-              className="text-xs font-semibold uppercase tracking-wider"
-              style={{ color: "oklch(0.45 0.008 264)" }}
-            >
-              Demo — Simulated Email Link
-            </p>
-            <code
-              className="text-xs break-all leading-relaxed"
-              style={{ color: "oklch(0.75 0.15 160)" }}
-            >
-              {window.location.origin}
-              {window.location.pathname}?verify={verifyToken}
-            </code>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                className="flex-1 h-9 rounded-lg text-sm font-semibold text-white active:scale-95 transition-transform"
-                style={{ background: RED }}
-                onClick={openVerifyLink}
-                data-ocid="login.verify_now_button"
-              >
-                <CheckCircle className="w-4 h-4 mr-1.5" />
-                Verify Now
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 px-3 rounded-lg text-sm active:scale-95 transition-transform"
-                onClick={copyToken}
-                data-ocid="login.copy_link_button"
-              >
-                <Copy className="w-4 h-4" />
-                {copied ? "Copied!" : "Copy"}
-              </Button>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="text-sm text-center active:opacity-70 transition-opacity"
-            style={{ color: "oklch(0.55 0.01 264)" }}
-            onClick={resetForm}
-          >
-            Back to Sign In
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div

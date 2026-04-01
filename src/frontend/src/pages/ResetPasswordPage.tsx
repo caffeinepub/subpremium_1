@@ -2,31 +2,37 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { AuthUser } from "@/context/AuthContext";
-import { CheckCircle, Eye, EyeOff, XCircle } from "lucide-react";
-import { useEffect, useState } from "react";
-
-function updateUser(id: string, data: Partial<AuthUser>) {
-  const users = JSON.parse(localStorage.getItem("users") || "[]");
-  const updated = users.map((u: AuthUser) =>
-    u.id === id ? { ...u, ...data } : u,
-  );
-  localStorage.setItem("users", JSON.stringify(updated));
-  return updated.find((u: AuthUser) => u.id === id) as AuthUser | undefined;
-}
+import { deleteToken, getToken, getUpdatedUser } from "@/lib/authTokens";
+import { CheckCircle, Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
 
 interface ResetPasswordPageProps {
-  token: string;
   onDone: () => void;
   onSuccess: (user: AuthUser) => void;
 }
 
+const RED = "oklch(0.548 0.222 27)";
+const MUTED = "oklch(0.55 0.01 264)";
+
+// Find the most recent unused reset token and return it for the hint
+function getLatestResetToken(): string | null {
+  const tokens = JSON.parse(localStorage.getItem("tokens") || "[]");
+  const resetTokens = tokens.filter(
+    (t: { type: string; expires: number }) =>
+      t.type === "reset" && t.expires > Date.now(),
+  );
+  if (!resetTokens.length) return null;
+  resetTokens.sort(
+    (a: { expires: number }, b: { expires: number }) => b.expires - a.expires,
+  );
+  return resetTokens[0].token as string;
+}
+
 export default function ResetPasswordPage({
-  token,
   onDone,
   onSuccess,
 }: ResetPasswordPageProps) {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [valid, setValid] = useState<boolean | null>(null);
+  const [token, setToken] = useState(() => getLatestResetToken() ?? "");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -34,23 +40,14 @@ export default function ResetPasswordPage({
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
 
-  useEffect(() => {
-    const uid = localStorage.getItem(`reset_${token}`);
-    if (uid) {
-      setUserId(uid);
-      setValid(true);
-    } else {
-      setValid(false);
-    }
-    // Clean token from URL
-    const url = new URL(window.location.href);
-    url.searchParams.delete("reset");
-    window.history.replaceState({}, "", url.toString());
-  }, [token]);
-
   const handleReset = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    const trimmedToken = token.trim();
+    if (!trimmedToken) {
+      setError("Please enter your reset code.");
+      return;
+    }
     if (!newPassword) {
       setError("Please enter a new password.");
       return;
@@ -64,60 +61,32 @@ export default function ResetPasswordPage({
       return;
     }
 
-    if (!userId) return;
-    const updatedUser = updateUser(userId, { password: newPassword });
-    localStorage.removeItem(`reset_${token}`);
+    const entry = getToken(trimmedToken, "reset");
+    if (!entry) {
+      setError("Invalid reset code. Please request a new one.");
+      return;
+    }
+    if (Date.now() > entry.expires) {
+      deleteToken(trimmedToken);
+      setError("This reset code has expired. Please request a new one.");
+      return;
+    }
 
-    // Auto-login
+    const updatedUser = getUpdatedUser(entry.userId, {
+      password: newPassword,
+    }) as AuthUser | undefined;
+    deleteToken(trimmedToken);
+
     if (updatedUser) {
-      localStorage.setItem("authUser", JSON.stringify(updatedUser));
+      const verified = { ...updatedUser, verified: true };
+      localStorage.setItem("authUser", JSON.stringify(verified));
       setDone(true);
-      setTimeout(() => onSuccess(updatedUser), 1500);
+      setTimeout(() => onSuccess(verified), 1200);
     } else {
       setDone(true);
-      setTimeout(() => onDone(), 1500);
+      setTimeout(() => onDone(), 1200);
     }
   };
-
-  const RED = "oklch(0.548 0.222 27)";
-
-  if (valid === null) return null;
-
-  if (!valid) {
-    return (
-      <div
-        className="fixed inset-0 flex items-center justify-center px-6"
-        style={{ background: "oklch(0.148 0.004 264)" }}
-        data-ocid="reset.invalid"
-      >
-        <div
-          className="w-full max-w-sm rounded-2xl p-8 flex flex-col items-center gap-6 text-center"
-          style={{
-            background: "oklch(0.178 0.005 264)",
-            border: "1px solid oklch(0.24 0.006 264)",
-          }}
-        >
-          <XCircle className="w-14 h-14" style={{ color: RED }} />
-          <div>
-            <h1 className="text-xl font-bold text-foreground mb-2">
-              Invalid Reset Link
-            </h1>
-            <p className="text-sm" style={{ color: "oklch(0.55 0.01 264)" }}>
-              This password reset link is invalid or has already been used.
-            </p>
-          </div>
-          <Button
-            className="w-full h-11 rounded-xl font-semibold text-white active:scale-95 transition-transform"
-            style={{ background: RED }}
-            onClick={onDone}
-            data-ocid="reset.back_button"
-          >
-            Back to Sign In
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   if (done) {
     return (
@@ -141,14 +110,17 @@ export default function ResetPasswordPage({
             <h1 className="text-xl font-bold text-foreground mb-2">
               Password Updated!
             </h1>
-            <p className="text-sm" style={{ color: "oklch(0.55 0.01 264)" }}>
-              You're being signed in automatically…
+            <p className="text-sm" style={{ color: MUTED }}>
+              Signing you in automatically…
             </p>
           </div>
         </div>
       </div>
     );
   }
+
+  // Hint: show the latest available reset token
+  const hintToken = getLatestResetToken();
 
   return (
     <div
@@ -177,16 +149,56 @@ export default function ResetPasswordPage({
             <h1 className="text-xl font-bold text-foreground tracking-tight">
               Set New Password
             </h1>
-            <p
-              className="text-sm mt-1"
-              style={{ color: "oklch(0.55 0.01 264)" }}
-            >
-              Choose a strong password for your account
+            <p className="text-sm mt-1" style={{ color: MUTED }}>
+              Enter your reset code and choose a new password
             </p>
           </div>
         </div>
 
+        {hintToken && (
+          <div
+            className="rounded-xl p-4"
+            style={{
+              background: "oklch(0.22 0.006 264)",
+              border: "1px solid oklch(0.28 0.006 264)",
+            }}
+          >
+            <p
+              className="text-xs font-semibold uppercase tracking-wider mb-2"
+              style={{ color: "oklch(0.45 0.008 264)" }}
+            >
+              Your reset code
+            </p>
+            <code
+              className="text-xs break-all leading-relaxed"
+              style={{ color: "oklch(0.75 0.15 160)" }}
+            >
+              {hintToken}
+            </code>
+          </div>
+        )}
+
         <form onSubmit={handleReset} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label
+              htmlFor="reset-code"
+              className="text-sm font-medium text-foreground"
+            >
+              Reset Code
+            </Label>
+            <Input
+              id="reset-code"
+              type="text"
+              placeholder="Paste your reset code"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary font-mono text-xs"
+              autoComplete="off"
+              spellCheck={false}
+              data-ocid="reset.code_input"
+            />
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <Label
               htmlFor="reset-password"
@@ -208,7 +220,7 @@ export default function ResetPasswordPage({
               <button
                 type="button"
                 className="absolute right-3 top-1/2 -translate-y-1/2 active:scale-95 transition-transform"
-                style={{ color: "oklch(0.55 0.01 264)" }}
+                style={{ color: MUTED }}
                 onClick={() => setShowPw((v) => !v)}
                 tabIndex={-1}
               >
@@ -242,7 +254,7 @@ export default function ResetPasswordPage({
               <button
                 type="button"
                 className="absolute right-3 top-1/2 -translate-y-1/2 active:scale-95 transition-transform"
-                style={{ color: "oklch(0.55 0.01 264)" }}
+                style={{ color: MUTED }}
                 onClick={() => setShowConfirm((v) => !v)}
                 tabIndex={-1}
               >
@@ -275,6 +287,16 @@ export default function ResetPasswordPage({
           >
             Reset Password
           </Button>
+
+          <button
+            type="button"
+            className="text-sm text-center active:opacity-70 transition-opacity"
+            style={{ color: MUTED }}
+            onClick={onDone}
+            data-ocid="reset.back_button"
+          >
+            Back to Sign In
+          </button>
         </form>
 
         <p

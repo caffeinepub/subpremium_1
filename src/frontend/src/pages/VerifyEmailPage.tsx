@@ -1,136 +1,182 @@
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/context/AuthContext";
 import type { AuthUser } from "@/context/AuthContext";
-import { CheckCircle, XCircle } from "lucide-react";
-import { useEffect, useState } from "react";
-
-function updateUser(id: string, data: Partial<AuthUser>) {
-  const users = JSON.parse(localStorage.getItem("users") || "[]");
-  const updated = users.map((u: AuthUser) =>
-    u.id === id ? { ...u, ...data } : u,
-  );
-  localStorage.setItem("users", JSON.stringify(updated));
-}
+import { deleteToken, getToken, updateUser } from "@/lib/authTokens";
+import { ShieldCheck } from "lucide-react";
+import { useState } from "react";
 
 interface VerifyEmailPageProps {
-  token: string;
-  onDone: () => void;
+  userId: string;
+  onSuccess: () => void;
+  onBack: () => void;
 }
 
-export default function VerifyEmailPage({
-  token,
-  onDone,
-}: VerifyEmailPageProps) {
-  const [status, setStatus] = useState<"pending" | "success" | "invalid">(
-    "pending",
-  );
+const RED = "oklch(0.548 0.222 27)";
+const MUTED = "oklch(0.55 0.01 264)";
 
-  useEffect(() => {
-    const userId = localStorage.getItem(`verify_${token}`);
-    if (!userId) {
-      setStatus("invalid");
+export default function VerifyEmailPage({
+  userId,
+  onSuccess,
+  onBack,
+}: VerifyEmailPageProps) {
+  const { login } = useAuth();
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    const trimmed = code.trim();
+    if (!trimmed) {
+      setError("Please enter your verification code.");
       return;
     }
+
+    const entry = getToken(trimmed, "verify");
+    if (!entry) {
+      setError("Invalid code. Check and try again.");
+      return;
+    }
+    if (entry.userId !== userId) {
+      setError("This code does not belong to your account.");
+      return;
+    }
+    if (Date.now() > entry.expires) {
+      deleteToken(trimmed);
+      setError("This code has expired. Please sign up again.");
+      return;
+    }
+
     updateUser(userId, { verified: true });
-    localStorage.removeItem(`verify_${token}`);
+    deleteToken(trimmed);
 
-    // Update authUser if it's the same user
-    try {
-      const authUser = JSON.parse(localStorage.getItem("authUser") || "null");
-      if (authUser && authUser.id === userId) {
-        const updated = { ...authUser, verified: true };
-        localStorage.setItem("authUser", JSON.stringify(updated));
-      }
-    } catch {}
+    // Auto-login
+    const users: AuthUser[] = JSON.parse(localStorage.getItem("users") || "[]");
+    const user = users.find((u) => u.id === userId);
+    if (user) {
+      const verified = { ...user, verified: true };
+      login(verified);
+    }
+    onSuccess();
+  };
 
-    setStatus("success");
-
-    // Remove token from URL without reload
-    const url = new URL(window.location.href);
-    url.searchParams.delete("verify");
-    window.history.replaceState({}, "", url.toString());
-  }, [token]);
-
-  const RED = "oklch(0.548 0.222 27)";
+  // Find the pending token to show a hint (the token itself is the "code")
+  const tokens = JSON.parse(localStorage.getItem("tokens") || "[]");
+  const pendingToken = tokens.find(
+    (t: { type: string; userId: string }) =>
+      t.type === "verify" && t.userId === userId,
+  );
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center px-6"
+      className="fixed inset-0 flex items-center justify-center px-6 animate-page-in"
       style={{ background: "oklch(0.148 0.004 264)" }}
       data-ocid="verify.page"
     >
       <div
-        className="w-full max-w-sm rounded-2xl p-8 flex flex-col items-center gap-6 text-center"
+        className="w-full max-w-sm rounded-2xl p-8 flex flex-col gap-6"
         style={{
           background: "oklch(0.178 0.005 264)",
           border: "1px solid oklch(0.24 0.006 264)",
         }}
       >
-        {status === "pending" && (
-          <>
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center"
-              style={{ background: "oklch(0.22 0.006 264)" }}
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center"
+            style={{ background: "oklch(0.22 0.006 264)" }}
+          >
+            <ShieldCheck className="w-7 h-7" style={{ color: RED }} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-foreground">
+              Verify Your Account
+            </h1>
+            <p
+              className="text-sm mt-1 leading-relaxed"
+              style={{ color: MUTED }}
             >
-              <span className="text-2xl animate-spin">⏳</span>
-            </div>
-            <p className="text-base font-semibold text-foreground">
-              Verifying your email…
+              Enter the verification code to activate your account.
             </p>
-          </>
+          </div>
+        </div>
+
+        {pendingToken && (
+          <div
+            className="rounded-xl p-4"
+            style={{
+              background: "oklch(0.22 0.006 264)",
+              border: "1px solid oklch(0.28 0.006 264)",
+            }}
+          >
+            <p
+              className="text-xs font-semibold uppercase tracking-wider mb-2"
+              style={{ color: "oklch(0.45 0.008 264)" }}
+            >
+              Your verification code
+            </p>
+            <code
+              className="text-xs break-all leading-relaxed"
+              style={{ color: "oklch(0.75 0.15 160)" }}
+            >
+              {pendingToken.token}
+            </code>
+          </div>
         )}
 
-        {status === "success" && (
-          <>
-            <CheckCircle
-              className="w-14 h-14"
-              style={{ color: "oklch(0.65 0.2 160)" }}
-            />
-            <div>
-              <h1 className="text-xl font-bold text-foreground mb-2">
-                Email Verified!
-              </h1>
-              <p className="text-sm" style={{ color: "oklch(0.55 0.01 264)" }}>
-                Your account is now active. Sign in to get started.
-              </p>
-            </div>
-            <Button
-              className="w-full h-11 rounded-xl font-semibold text-white active:scale-95 transition-transform"
-              style={{
-                background: RED,
-                boxShadow: "0 4px 16px rgba(225,29,46,0.35)",
-              }}
-              onClick={onDone}
-              data-ocid="verify.signin_button"
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label
+              htmlFor="verify-code"
+              className="text-sm font-medium text-foreground"
             >
-              Go to Sign In
-            </Button>
-          </>
-        )}
+              Verification Code
+            </Label>
+            <Input
+              id="verify-code"
+              type="text"
+              placeholder="Paste your code here"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary font-mono text-xs"
+              autoComplete="off"
+              spellCheck={false}
+              data-ocid="verify.code_input"
+            />
+          </div>
 
-        {status === "invalid" && (
-          <>
-            <XCircle
-              className="w-14 h-14"
-              style={{ color: "oklch(0.548 0.222 27)" }}
-            />
-            <div>
-              <h1 className="text-xl font-bold text-foreground mb-2">
-                Invalid Link
-              </h1>
-              <p className="text-sm" style={{ color: "oklch(0.55 0.01 264)" }}>
-                This verification link is invalid or has already been used.
-              </p>
-            </div>
-            <Button
-              className="w-full h-11 rounded-xl font-semibold text-white active:scale-95 transition-transform"
-              style={{ background: RED }}
-              onClick={onDone}
-              data-ocid="verify.back_button"
+          {error && (
+            <p
+              className="text-sm text-destructive"
+              data-ocid="verify.error_state"
             >
-              Back to Sign In
-            </Button>
-          </>
-        )}
+              {error}
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            className="h-11 rounded-xl font-semibold text-white active:scale-95 transition-transform"
+            style={{
+              background: RED,
+              boxShadow: "0 4px 16px rgba(225,29,46,0.35)",
+            }}
+            data-ocid="verify.submit_button"
+          >
+            Verify Account
+          </Button>
+
+          <button
+            type="button"
+            className="text-sm text-center active:opacity-70 transition-opacity"
+            style={{ color: MUTED }}
+            onClick={onBack}
+            data-ocid="verify.back_button"
+          >
+            Back to Sign In
+          </button>
+        </form>
       </div>
     </div>
   );

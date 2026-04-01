@@ -144,13 +144,9 @@ applyDataReset();
 
 function AppContent() {
   const { authUser, login } = useAuth();
-  const [showRecover, setShowRecover] = useState(false);
-  const [urlVerifyToken] = useState(
-    () => new URLSearchParams(window.location.search).get("verify") || "",
-  );
-  const [urlResetToken] = useState(
-    () => new URLSearchParams(window.location.search).get("reset") || "",
-  );
+  type AuthScreen = "login" | "recover" | "verify" | "reset";
+  const [authScreen, setAuthScreen] = useState<AuthScreen>("login");
+  const [pendingVerifyUserId, setPendingVerifyUserId] = useState("");
   const [route, setRoute] = useState<Route>("home");
   const [searchQuery, setSearchQuery] = useState("");
   const [watchVideo, setWatchVideo] = useState<Video | null>(null);
@@ -226,43 +222,37 @@ function AppContent() {
     };
   }, []);
 
-  // Handle URL-based token flows (accessible from any auth state)
-  if (urlVerifyToken) {
-    return (
-      <VerifyEmailPage
-        token={urlVerifyToken}
-        onDone={() => {
-          window.history.replaceState({}, "", window.location.pathname);
-          window.location.reload();
-        }}
-      />
-    );
-  }
-
-  if (urlResetToken) {
-    return (
-      <ResetPasswordPage
-        token={urlResetToken}
-        onDone={() => {
-          window.history.replaceState({}, "", window.location.pathname);
-          window.location.reload();
-        }}
-        onSuccess={(user) => {
-          login(user);
-          window.history.replaceState({}, "", window.location.pathname);
-        }}
-      />
-    );
-  }
-
   if (!authUser) {
-    if (showRecover) {
+    if (authScreen === "verify") {
+      return (
+        <VerifyEmailPage
+          userId={pendingVerifyUserId}
+          onSuccess={() => {
+            // auto-login already done inside VerifyEmailPage
+          }}
+          onBack={() => setAuthScreen("login")}
+        />
+      );
+    }
+    if (authScreen === "recover") {
       return (
         <RecoverPage
-          onBack={() => setShowRecover(false)}
+          onBack={() => setAuthScreen("login")}
+          onResetReady={() => setAuthScreen("reset")}
           onSuccess={(user) => {
             login(user);
-            setShowRecover(false);
+            setAuthScreen("login");
+          }}
+        />
+      );
+    }
+    if (authScreen === "reset") {
+      return (
+        <ResetPasswordPage
+          onDone={() => setAuthScreen("login")}
+          onSuccess={(user) => {
+            login(user);
+            setAuthScreen("login");
           }}
         />
       );
@@ -276,7 +266,11 @@ function AppContent() {
             setShowWelcome(true);
           }, 3000);
         }}
-        onForgotPassword={() => setShowRecover(true)}
+        onForgotPassword={() => setAuthScreen("recover")}
+        onVerifyNeeded={(userId) => {
+          setPendingVerifyUserId(userId);
+          setAuthScreen("verify");
+        }}
       />
     );
   }
