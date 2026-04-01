@@ -15,6 +15,9 @@ export interface Video {
   status?: string; // "READY" | "uploading"
   uploading?: boolean; // true while upload in progress
   progress?: number; // 0-100 upload progress
+  isLocalVideo?: boolean; // saved directly to localStorage with blob URL
+  visibility?: string; // "public" | "private" | "unlisted"
+  createdAt?: number; // unix ms timestamp
 }
 
 export const VIDEOS: Video[] = [];

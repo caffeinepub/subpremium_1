@@ -64,25 +64,90 @@ function mapUrlRecord(v: VideoUrlRecord): Video {
   };
 }
 
+function parseLocalVideo(raw: Record<string, unknown>): Video | null {
+  if (!raw?.id) return null;
+  return {
+    id: String(raw.id),
+    title: String(raw.title || "Untitled"),
+    creator: String(raw.ownerName || ""),
+    username: String(raw.ownerName || ""),
+    ownerId: String(raw.ownerId || ""),
+    views: Number(raw.views) || 0,
+    description: String(raw.description || ""),
+    date: raw.createdAt
+      ? new Date(Number(raw.createdAt)).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : "",
+    thumbnailUrl: String(raw.thumbnailUrl || ""),
+    // local videos store source in `url`; fall back to `videoUrl`
+    videoUrl: String(raw.url || raw.videoUrl || ""),
+    hlsUrl: raw.hlsUrl ? String(raw.hlsUrl) : undefined,
+    duration: "",
+    status: "READY",
+    isLocalVideo: true,
+    visibility: String(raw.visibility || "public"),
+    createdAt: Number(raw.createdAt) || 0,
+  };
+}
+
+/** Load videos saved directly to localStorage under video_* keys. */
+function loadLocalVideos(): Video[] {
+  try {
+    const result: Video[] = [];
+    for (const k of Object.keys(localStorage)) {
+      if (!k.startsWith("video_")) continue;
+      try {
+        const raw = JSON.parse(localStorage.getItem(k) ?? "") as Record<
+          string,
+          unknown
+        >;
+        const v = parseLocalVideo(raw);
+        if (v && (!v.visibility || v.visibility === "public")) {
+          result.push(v);
+        }
+      } catch {
+        // skip malformed entry
+      }
+    }
+    return result.sort(
+      (a, b) => ((b.createdAt as number) || 0) - ((a.createdAt as number) || 0),
+    );
+  } catch {
+    return [];
+  }
+}
+
 export function VideoProvider({ children }: { children: ReactNode }) {
   const { actor, isFetching } = useActor();
   const fetchedRef = useRef(false);
 
   const [videos, setVideos] = useState<Video[]>(() => {
+    const localVideos = loadLocalVideos();
     try {
       const cached = localStorage.getItem("videosCache");
-      if (cached) return JSON.parse(cached) as Video[];
+      if (cached) {
+        const cachedVideos = JSON.parse(cached) as Video[];
+        const seenIds = new Set<string>(localVideos.map((v) => v.id));
+        for (const v of cachedVideos) {
+          if (!seenIds.has(v.id)) {
+            seenIds.add(v.id);
+            localVideos.push(v);
+          }
+        }
+      }
     } catch {
       // ignore
     }
-    return [];
+    return localVideos;
   });
   const [loading, setLoading] = useState(true);
 
   const fetchVideos = useCallback(async () => {
     if (!actor) return;
     try {
-      // Fetch both blob videos and URL-only videos in parallel
       const [backendVideos, urlRecords] = await Promise.all([
         actor.getAllVideos(),
         actor.getAllVideoUrlRecords().catch(() => [] as VideoUrlRecord[]),
@@ -91,22 +156,35 @@ export function VideoProvider({ children }: { children: ReactNode }) {
       const blobMapped: Video[] = backendVideos.map(mapBackendVideo);
       const urlMapped: Video[] = urlRecords.map(mapUrlRecord);
 
-      // Merge: URL records first (newer format), then blob videos
-      // Deduplicate by id in case a video appears in both lists
       const seenIds = new Set<string>();
-      const merged: Video[] = [];
+      const backendMerged: Video[] = [];
       for (const v of [...urlMapped, ...blobMapped]) {
         if (!seenIds.has(v.id)) {
           seenIds.add(v.id);
-          merged.push(v);
+          backendMerged.push(v);
         }
       }
 
       setVideos((prev) => {
         const tempVideos = prev.filter((v) => v.status === "uploading");
-        const combined = [...tempVideos, ...merged];
-        // Cache only READY videos
-        localStorage.setItem("videosCache", JSON.stringify(merged));
+        const freshLocal = loadLocalVideos();
+        const combined = [...tempVideos];
+        const seenCombined = new Set<string>(combined.map((v) => v.id));
+
+        for (const v of freshLocal) {
+          if (!seenCombined.has(v.id)) {
+            seenCombined.add(v.id);
+            combined.push(v);
+          }
+        }
+        for (const v of backendMerged) {
+          if (!seenCombined.has(v.id)) {
+            seenCombined.add(v.id);
+            combined.push(v);
+          }
+        }
+
+        localStorage.setItem("videosCache", JSON.stringify(backendMerged));
         return combined;
       });
     } catch {

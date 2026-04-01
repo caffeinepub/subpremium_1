@@ -30,20 +30,16 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
   const { uploadState, progress, statusText, errorMsg, startUpload, reset } =
     useUploadEngine();
 
-  // Upload mode
   const [uploadMode, setUploadMode] = useState<"file" | "url">("url");
 
-  // Shared fields
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [formError, setFormError] = useState("");
 
-  // File mode fields
   const [thumbnail, setThumbnail] = useState<File | null>(null);
   const [video, setVideo] = useState<File | null>(null);
   const [hlsUrl, setHlsUrl] = useState("");
 
-  // URL mode fields
   const [videoUrl, setVideoUrl] = useState("");
   const [thumbnailUrlInput, setThumbnailUrlInput] = useState("");
   const [urlSubmitting, setUrlSubmitting] = useState(false);
@@ -51,7 +47,6 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
   const thumbRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLInputElement>(null);
 
-  // Reset shared fields when file upload completes
   useEffect(() => {
     if (uploadState === "done") {
       setTitle("");
@@ -66,7 +61,8 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
   const isInProgress =
     uploadState === "uploading" || uploadState === "processing";
 
-  // ── FILE MODE SUBMIT ──
+  // ── FILE MODE: chunked upload to ICP backend ──
+  // Blob URL used as instant fallback; replaced by permanent server URL on success.
   const handleFileSubmit = () => {
     setFormError("");
     if (!authUser) {
@@ -93,6 +89,7 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
       setFormError("Please select a thumbnail image.");
       return;
     }
+
     startUpload({
       file: video,
       title,
@@ -103,7 +100,7 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
     onNavigate?.("home");
   };
 
-  // ── URL MODE SUBMIT ──
+  // ── URL MODE ──
   const handleUrlSubmit = async () => {
     setFormError("");
     if (!authUser) {
@@ -141,7 +138,6 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
     const finalHlsUrl = isHls ? videoUrl.trim() : null;
     const thumbUrl = thumbnailUrlInput.trim() || "";
 
-    // Add temp card to live feed immediately
     const tempId = crypto.randomUUID();
     addVideo({
       id: tempId,
@@ -164,7 +160,6 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
       uploading: false,
     });
 
-    // Navigate home immediately so user sees the card
     onNavigate?.("home");
 
     try {
@@ -176,7 +171,6 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
         authUser.username || authUser.name || "",
         finalHlsUrl,
       );
-      // Update temp card with real persisted ID
       updateVideo(tempId, { id: videoId });
       setTitle("");
       setDescription("");
@@ -196,7 +190,7 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
     <div className="animate-page-in py-6 px-1" data-ocid="upload.section">
       <h2 className="text-xl font-bold text-foreground mb-4">Upload Video</h2>
 
-      {/* ── Mode Toggle ── */}
+      {/* Mode Toggle */}
       <div
         className="flex rounded-xl overflow-hidden mb-6"
         style={{
@@ -205,43 +199,33 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
         }}
         data-ocid="upload.mode_toggle"
       >
-        <button
-          type="button"
-          className="flex-1 h-11 flex items-center justify-center gap-2 text-sm font-semibold transition-all"
-          style={
-            uploadMode === "file"
-              ? { background: RED, color: "#fff" }
-              : { color: MUTED, background: "transparent" }
-          }
-          onClick={() => {
-            setUploadMode("file");
-            setFormError("");
-          }}
-          data-ocid="upload.mode_file"
-        >
-          <Film className="w-4 h-4" />
-          Upload File
-        </button>
-        <button
-          type="button"
-          className="flex-1 h-11 flex items-center justify-center gap-2 text-sm font-semibold transition-all"
-          style={
-            uploadMode === "url"
-              ? { background: RED, color: "#fff" }
-              : { color: MUTED, background: "transparent" }
-          }
-          onClick={() => {
-            setUploadMode("url");
-            setFormError("");
-          }}
-          data-ocid="upload.mode_url"
-        >
-          <Link2 className="w-4 h-4" />
-          Paste URL
-        </button>
+        {(["file", "url"] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            className="flex-1 h-11 flex items-center justify-center gap-2 text-sm font-semibold transition-all"
+            style={
+              uploadMode === mode
+                ? { background: RED, color: "#fff" }
+                : { color: MUTED, background: "transparent" }
+            }
+            onClick={() => {
+              setUploadMode(mode);
+              setFormError("");
+            }}
+            data-ocid={`upload.mode_${mode}`}
+          >
+            {mode === "file" ? (
+              <Film className="w-4 h-4" />
+            ) : (
+              <Link2 className="w-4 h-4" />
+            )}
+            {mode === "file" ? "Upload File" : "Paste URL"}
+          </button>
+        ))}
       </div>
 
-      {/* ── Active upload status banner (file mode) ── */}
+      {/* Upload progress (file mode) */}
       {uploadMode === "file" && isInProgress && (
         <div
           className="mb-5 rounded-2xl overflow-hidden"
@@ -284,7 +268,7 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
                     : `Uploading ${progress}%`)}
               </p>
               <p className="text-xs mt-0.5" style={{ color: MUTED }}>
-                Your video is uploading in the background.
+                Video is playable now — permanent URL saved when done.
               </p>
             </div>
             <span
@@ -297,7 +281,7 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
         </div>
       )}
 
-      {/* ── Done state (file mode) ── */}
+      {/* Done */}
       {uploadMode === "file" && uploadState === "done" && (
         <div
           className="mb-5 px-4 py-3 rounded-2xl text-sm font-medium"
@@ -308,11 +292,11 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
           }}
           data-ocid="upload.success_state"
         >
-          Video uploaded successfully and is ready to watch!
+          Video uploaded and ready to watch!
         </div>
       )}
 
-      {/* ── Error state (file mode) ── */}
+      {/* Error */}
       {uploadMode === "file" && uploadState === "error" && errorMsg && (
         <div
           className="mb-5 px-4 py-3 rounded-2xl text-sm"
@@ -336,7 +320,7 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
         </div>
       )}
 
-      {/* ── Form ── */}
+      {/* Form */}
       <div
         className="flex flex-col gap-5"
         style={{
@@ -344,7 +328,7 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
           pointerEvents: isInProgress || urlSubmitting ? "none" : "auto",
         }}
       >
-        {/* Title (shared) */}
+        {/* Title */}
         <div className="flex flex-col gap-1.5">
           {/* biome-ignore lint/a11y/noLabelWithoutControl: input is immediately below */}
           <label className="text-sm font-medium" style={LABEL_STYLE}>
@@ -362,7 +346,7 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
           />
         </div>
 
-        {/* Description (shared) */}
+        {/* Description */}
         <div className="flex flex-col gap-1.5">
           {/* biome-ignore lint/a11y/noLabelWithoutControl: textarea is immediately below */}
           <label className="text-sm font-medium" style={LABEL_STYLE}>
@@ -380,10 +364,9 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
           />
         </div>
 
-        {/* ── FILE MODE fields ── */}
+        {/* FILE MODE fields */}
         {uploadMode === "file" && (
           <>
-            {/* Thumbnail picker */}
             <div className="flex flex-col gap-1.5">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: file input referenced via ref */}
               <label className="text-sm font-medium" style={LABEL_STYLE}>
@@ -425,7 +408,6 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
               />
             </div>
 
-            {/* Video file picker */}
             <div className="flex flex-col gap-1.5">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: file input referenced via ref */}
               <label className="text-sm font-medium" style={LABEL_STYLE}>
@@ -469,9 +451,12 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
                 }}
                 data-ocid="upload.video_input"
               />
+              <p className="text-xs" style={{ color: MUTED }}>
+                Up to 2GB. Playable instantly — permanent URL saved after
+                upload.
+              </p>
             </div>
 
-            {/* HLS Stream URL (optional) */}
             <div className="flex flex-col gap-1.5">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: input is immediately below */}
               <label className="text-sm font-medium" style={LABEL_STYLE}>
@@ -489,18 +474,13 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
                 style={INPUT_STYLE}
                 data-ocid="upload.hls_url_input"
               />
-              <p className="text-xs" style={{ color: MUTED }}>
-                Paste a master.m3u8 URL from Cloudflare Stream, Mux, etc. for
-                adaptive quality streaming.
-              </p>
             </div>
           </>
         )}
 
-        {/* ── URL MODE fields ── */}
+        {/* URL MODE fields */}
         {uploadMode === "url" && (
           <>
-            {/* Video URL */}
             <div className="flex flex-col gap-1.5">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: input is immediately below */}
               <label className="text-sm font-medium" style={LABEL_STYLE}>
@@ -525,7 +505,6 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
               </p>
             </div>
 
-            {/* Thumbnail URL (optional) */}
             <div className="flex flex-col gap-1.5">
               {/* biome-ignore lint/a11y/noLabelWithoutControl: input is immediately below */}
               <label className="text-sm font-medium" style={LABEL_STYLE}>
@@ -547,7 +526,6 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
           </>
         )}
 
-        {/* Form validation error */}
         {formError && (
           <div
             className="px-4 py-3 rounded-xl text-sm"
@@ -561,7 +539,6 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
           </div>
         )}
 
-        {/* Submit */}
         <button
           type="button"
           className="h-12 rounded-full font-semibold text-sm text-white flex items-center justify-center gap-2 mt-1 active:scale-95 transition-transform disabled:opacity-60"
