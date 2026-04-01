@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { VideoProvider, useVideos } from "@/context/VideoContext";
 import type { Video } from "@/data/videos";
 import { UploadEngineProvider } from "@/hooks/useUploadEngine";
+import DashboardPage from "@/pages/DashboardPage";
 import HistoryPage from "@/pages/HistoryPage";
 import HomePage from "@/pages/HomePage";
 import LoginPage from "@/pages/LoginPage";
@@ -403,7 +404,7 @@ function AppContent() {
             />
           </div>
         )}
-        {(route === "profile" || route === "dashboard") && (
+        {route === "profile" && (
           <div key="profile" className="px-4">
             <ProfilePage
               onBack={() => setRoute("home")}
@@ -412,6 +413,11 @@ function AppContent() {
                 setRoute("watch");
               }}
             />
+          </div>
+        )}
+        {route === "dashboard" && (
+          <div key="dashboard">
+            <DashboardPage onBack={() => setRoute("history")} />
           </div>
         )}
       </main>
