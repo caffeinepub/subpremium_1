@@ -7,6 +7,8 @@ interface VideoRecord {
   thumbnailUrl?: string;
   visibility?: "public" | "private" | "unlisted";
   ownerId: string;
+  createdAt?: number;
+  views?: number;
   [key: string]: unknown;
 }
 
@@ -15,6 +17,8 @@ interface DashboardPageProps {
 }
 
 type Visibility = "public" | "private" | "unlisted";
+type SortOption = "new" | "old" | "views";
+type FilterOption = "all" | "public" | "private" | "unlisted";
 
 const VISIBILITY_CYCLE: Visibility[] = ["public", "private", "unlisted"];
 
@@ -64,6 +68,23 @@ function loadUserVideos(): VideoRecord[] {
 
 export default function DashboardPage({ onBack }: DashboardPageProps) {
   const [videos, setVideos] = useState<VideoRecord[]>(loadUserVideos);
+  const [sort, setSort] = useState<SortOption>("new");
+  const [filter, setFilter] = useState<FilterOption>("all");
+
+  // Apply filter
+  let list = [...videos];
+  if (filter !== "all") {
+    list = list.filter((v) => (v.visibility || "public") === filter);
+  }
+
+  // Apply sort
+  if (sort === "new") {
+    list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  } else if (sort === "old") {
+    list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  } else if (sort === "views") {
+    list.sort((a, b) => (b.views || 0) - (a.views || 0));
+  }
 
   function updateTitle(id: string, newTitle: string) {
     setVideos((prev) =>
@@ -95,6 +116,17 @@ export default function DashboardPage({ onBack }: DashboardPageProps) {
     setVideos((prev) => prev.filter((v) => v.id !== id));
   }
 
+  const selectStyle: React.CSSProperties = {
+    background: "oklch(0.22 0.006 264)",
+    color: "#fff",
+    border: "1px solid oklch(0.28 0.008 264)",
+    borderRadius: "10px",
+    padding: "6px 10px",
+    fontSize: "13px",
+    outline: "none",
+    cursor: "pointer",
+  };
+
   return (
     <div
       className="min-h-full"
@@ -115,6 +147,10 @@ export default function DashboardPage({ onBack }: DashboardPageProps) {
         }
         .dashboard-grid > * {
           width: 100%;
+        }
+        .dash-select option {
+          background: oklch(0.22 0.006 264);
+          color: #fff;
         }
       `}</style>
 
@@ -148,13 +184,44 @@ export default function DashboardPage({ onBack }: DashboardPageProps) {
             color: "oklch(0.65 0.01 264)",
           }}
         >
-          {videos.length}
+          {list.length}/{videos.length}
         </span>
+      </div>
+
+      {/* Sort + Filter Controls */}
+      <div
+        className="flex items-center gap-3 px-4 py-3 flex-wrap"
+        style={{ borderBottom: "1px solid oklch(0.22 0.006 264)" }}
+        data-ocid="dashboard.controls"
+      >
+        <select
+          className="dash-select"
+          style={selectStyle}
+          value={sort}
+          onChange={(e) => setSort(e.target.value as SortOption)}
+          data-ocid="dashboard.sort_select"
+        >
+          <option value="new">Newest</option>
+          <option value="old">Oldest</option>
+          <option value="views">Most Viewed</option>
+        </select>
+        <select
+          className="dash-select"
+          style={selectStyle}
+          value={filter}
+          onChange={(e) => setFilter(e.target.value as FilterOption)}
+          data-ocid="dashboard.filter_select"
+        >
+          <option value="all">All</option>
+          <option value="public">Public</option>
+          <option value="private">Private</option>
+          <option value="unlisted">Unlisted</option>
+        </select>
       </div>
 
       {/* Content */}
       <div>
-        {videos.length === 0 ? (
+        {list.length === 0 ? (
           <div
             className="flex flex-col items-center justify-center py-20 gap-4"
             data-ocid="dashboard.empty_state"
@@ -169,18 +236,22 @@ export default function DashboardPage({ onBack }: DashboardPageProps) {
               className="text-base font-medium"
               style={{ color: "oklch(0.55 0.01 264)" }}
             >
-              No videos yet
+              {videos.length === 0
+                ? "No videos yet"
+                : "No videos match this filter"}
             </p>
             <p
               className="text-sm text-center px-8"
               style={{ color: "oklch(0.42 0.006 264)" }}
             >
-              Upload a video to see it here
+              {videos.length === 0
+                ? "Upload a video to see it here"
+                : "Try changing the filter to see more videos"}
             </p>
           </div>
         ) : (
           <div className="dashboard-grid" data-ocid="dashboard.list">
-            {videos.map((v, i) => {
+            {list.map((v, i) => {
               const vis: Visibility = (v.visibility as Visibility) || "public";
               const cfg = VISIBILITY_CONFIG[vis];
               return (
