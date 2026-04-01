@@ -112,7 +112,7 @@ function WelcomeOverlay({ onDone }: { onDone: () => void }) {
 
 // ── Data Reset (runs once at module load, before any React renders) ──────────
 function applyDataReset() {
-  const RESET_VERSION = "reset_v2";
+  const RESET_VERSION = "reset_v3";
   if (localStorage.getItem("_dataReset") === RESET_VERSION) return;
 
   const keep = new Set([
@@ -124,6 +124,8 @@ function applyDataReset() {
     "autoplay",
     "darkMode",
     "_dataReset",
+    "users",
+    "tokens",
   ]);
 
   const toDelete: string[] = [];
