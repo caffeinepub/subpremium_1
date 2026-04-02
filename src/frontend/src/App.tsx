@@ -112,7 +112,7 @@ function WelcomeOverlay({ onDone }: { onDone: () => void }) {
 
 // ── Data Reset (runs once at module load, before any React renders) ──────────
 function applyDataReset() {
-  const RESET_VERSION = "reset_v5";
+  const RESET_VERSION = "reset_v6";
   if (localStorage.getItem("_dataReset") === RESET_VERSION) return;
 
   const keep = new Set([
@@ -143,6 +143,40 @@ function applyDataReset() {
 }
 
 applyDataReset();
+
+function syncOwnedVideosOnLoad() {
+  try {
+    const raw = localStorage.getItem("authUser");
+    if (!raw) return;
+    const user = JSON.parse(raw) as {
+      id: string;
+      username: string;
+      avatarUrl?: string;
+      avatar?: string;
+    };
+    if (!user?.id) return;
+    for (const k of Object.keys(localStorage)) {
+      if (!k.startsWith("video_")) continue;
+      try {
+        const v = JSON.parse(localStorage.getItem(k) || "");
+        if (v && v.ownerId === user.id) {
+          let changed = false;
+          if (v.ownerName !== user.username) {
+            v.ownerName = user.username;
+            changed = true;
+          }
+          const avatar = user.avatarUrl || user.avatar || "";
+          if (v.avatar !== avatar) {
+            v.avatar = avatar;
+            changed = true;
+          }
+          if (changed) localStorage.setItem(k, JSON.stringify(v));
+        }
+      } catch {}
+    }
+  } catch {}
+}
+syncOwnedVideosOnLoad();
 
 function AppContent() {
   const { authUser, login } = useAuth();

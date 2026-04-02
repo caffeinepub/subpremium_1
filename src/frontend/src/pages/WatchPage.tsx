@@ -770,6 +770,10 @@ export default function WatchPage({
   const creatorUsername = isOwner
     ? authUser?.username || video.username || "creator"
     : video.username || video.ownerName || video.creator || "creator";
+  const creatorAvatar = isOwner
+    ? authUser?.avatarUrl || video.avatar || ""
+    : video.avatar || "";
+
   const initials = creatorName
     .split(" ")
     .map((w) => w[0])
@@ -1301,10 +1305,18 @@ export default function WatchPage({
       {/* ── Channel Row ── */}
       <div className="px-4 py-3 flex items-center gap-3">
         <div
-          className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0"
+          className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0 overflow-hidden"
           style={{ background: RED }}
         >
-          {initials}
+          {creatorAvatar ? (
+            <img
+              src={creatorAvatar}
+              alt={creatorName}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            initials
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-white text-sm leading-tight truncate">

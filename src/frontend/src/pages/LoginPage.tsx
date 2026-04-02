@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
-import { saveToken } from "@/lib/authTokens";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 
@@ -25,7 +24,6 @@ function saveUser(u: object) {
 export default function LoginPage({
   onSuccess,
   onForgotPassword,
-  onVerifyNeeded,
 }: LoginPageProps) {
   const { login } = useAuth();
   const [tab, setTab] = useState<Tab>("signin");
@@ -71,10 +69,6 @@ export default function LoginPage({
     );
     if (!user) {
       setError("Invalid username or password.");
-      return;
-    }
-    if (user.verified === false) {
-      setError("Please verify your email before signing in.");
       return;
     }
     login(user);
@@ -130,19 +124,13 @@ export default function LoginPage({
       email: email.trim(),
       password,
       recoveryAnswer: recoveryAnswer.trim(),
-      verified: false,
+      verified: true,
+      avatar: "",
+      createdAt: Date.now(),
     };
     saveUser(newUser);
-
-    const token = crypto.randomUUID();
-    saveToken({
-      type: "verify",
-      token,
-      userId: newUser.id,
-      expires: Date.now() + 15 * 60 * 1000,
-    });
-
-    onVerifyNeeded(newUser.id);
+    login(newUser);
+    onSuccess();
   };
 
   return (

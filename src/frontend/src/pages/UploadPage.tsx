@@ -174,6 +174,23 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
         finalHlsUrl,
       );
       updateVideo(tempId, { id: videoId });
+      // persist to localStorage so ownership survives refresh
+      const lsRecord = {
+        id: videoId,
+        title: title.trim(),
+        url: finalVideoUrl || videoUrl.trim(),
+        videoUrl: finalVideoUrl || videoUrl.trim(),
+        thumbnailUrl: thumbUrl,
+        hlsUrl: finalHlsUrl || null,
+        ownerId: authUser.id,
+        ownerName: authUser.username,
+        avatar: authUser.avatarUrl || "",
+        description: description.trim(),
+        createdAt: Date.now(),
+        views: 0,
+        visibility: "public",
+      };
+      localStorage.setItem(`video_${videoId}`, JSON.stringify(lsRecord));
       setTitle("");
       setDescription("");
       setVideoUrl("");
