@@ -10,12 +10,31 @@ const navItems = [
 export default function MenuPage() {
   const { authUser, logout } = useAuth();
 
+  const myVideos = authUser
+    ? Object.keys(localStorage)
+        .filter((k) => k.startsWith("video_"))
+        .map((k) => {
+          try {
+            return JSON.parse(localStorage.getItem(k) || "");
+          } catch {
+            return null;
+          }
+        })
+        .filter(
+          (v): v is { ownerId: string; views?: number } =>
+            v !== null && v.ownerId === authUser.id,
+        )
+    : [];
+
+  const totalVideos = myVideos.length;
+  const totalViews = myVideos.reduce((s, v) => s + (v.views || 0), 0);
+
   return (
     <div className="animate-page-in py-6" data-ocid="menu.section">
       {/* User greeting */}
       {authUser && (
         <div
-          className="flex items-center gap-3 mb-6 px-5 py-4 rounded-xl"
+          className="flex items-center gap-3 mb-4 px-5 py-4 rounded-xl"
           style={{ background: "oklch(0.22 0.006 264)" }}
           data-ocid="menu.card"
         >
@@ -35,6 +54,30 @@ export default function MenuPage() {
             >
               @{authUser.username}
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* Creator Stats */}
+      {authUser && (
+        <div className="flex gap-3 mb-6" data-ocid="menu.stats">
+          <div
+            className="flex-1 rounded-xl py-3 text-center"
+            style={{ background: "oklch(0.22 0.006 264)" }}
+          >
+            <div className="text-lg font-bold text-white">{totalVideos}</div>
+            <div className="text-xs" style={{ color: "oklch(0.55 0.01 264)" }}>
+              Videos
+            </div>
+          </div>
+          <div
+            className="flex-1 rounded-xl py-3 text-center"
+            style={{ background: "oklch(0.22 0.006 264)" }}
+          >
+            <div className="text-lg font-bold text-white">{totalViews}</div>
+            <div className="text-xs" style={{ color: "oklch(0.55 0.01 264)" }}>
+              Views
+            </div>
           </div>
         </div>
       )}

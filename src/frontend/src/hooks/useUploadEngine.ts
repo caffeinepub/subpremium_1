@@ -179,6 +179,10 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
       const uploadId = params.uploadId || crypto.randomUUID();
       const isResume = !!params.uploadId;
 
+      // File-name-based resume tracking (belt-and-suspenders alongside uploadId session)
+      const fileNameKey = `upload_${file.name}`;
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
       // Blob URL: valid for this browser session — used as fallback while uploading
       const blobUrl = URL.createObjectURL(file);
 
@@ -221,7 +225,6 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
           fileSize: file.size,
         });
 
-        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
         const resumePct = Math.round((startChunk / totalChunks) * 95);
 
         if (isResume) {
@@ -287,6 +290,17 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
 
         const videoBlob = ExternalBlob.fromBlob(file);
         videoBlob.withUploadProgress((pct) => {
+          // Update file-name-based resume tracker with approximate chunk progress
+          const approxChunk = Math.floor((pct / 100) * totalChunks);
+          localStorage.setItem(
+            fileNameKey,
+            JSON.stringify({
+              uploaded: approxChunk,
+              total: totalChunks,
+              uploadId,
+            }),
+          );
+
           const combined = Math.round(Math.min(pct, 98));
           const safeProgress = Math.max(combined, currentProgress);
           if (safeProgress >= 99) return;
@@ -332,6 +346,7 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
           removeVideoRef.current(uploadId);
           await deleteSession(uploadId).catch(() => {});
           clearUploadLocalStorage(uploadId);
+          localStorage.removeItem(fileNameKey);
           await deleteFileBlobFromIDB(uploadId).catch(() => {});
           setUploadState("idle");
           setProgress(0);
@@ -394,6 +409,7 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
           });
           await deleteSession(uploadId).catch(() => {});
           clearUploadLocalStorage(uploadId);
+          localStorage.removeItem(fileNameKey);
           await deleteFileBlobFromIDB(uploadId).catch(() => {});
           setUploadState("done");
           setProgress(100);
@@ -446,6 +462,7 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
         await deleteSession(uploadId).catch(() => {});
         await deleteFileBlobFromIDB(uploadId).catch(() => {});
         clearUploadLocalStorage(uploadId);
+        localStorage.removeItem(fileNameKey);
 
         setTimeout(() => {
           setUploadState("idle");
@@ -460,6 +477,7 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
         );
         stopProgressSim();
         URL.revokeObjectURL(blobUrl);
+        localStorage.removeItem(fileNameKey);
         setUploadState("idle");
         setProgress(0);
         setStatusText("");

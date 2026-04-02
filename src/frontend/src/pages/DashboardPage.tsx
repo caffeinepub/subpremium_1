@@ -71,6 +71,9 @@ export default function DashboardPage({ onBack }: DashboardPageProps) {
   const [sort, setSort] = useState<SortOption>("new");
   const [filter, setFilter] = useState<FilterOption>("all");
 
+  const totalVideos = videos.length;
+  const totalViews = videos.reduce((s, v) => s + (v.views || 0), 0);
+
   // Apply filter
   let list = [...videos];
   if (filter !== "all") {
@@ -217,6 +220,37 @@ export default function DashboardPage({ onBack }: DashboardPageProps) {
           <option value="private">Private</option>
           <option value="unlisted">Unlisted</option>
         </select>
+      </div>
+
+      {/* Creator Stats */}
+      <div
+        style={{ display: "flex", gap: 12, padding: "12px 16px 0" }}
+        data-ocid="dashboard.stats"
+      >
+        <div
+          style={{
+            background: "oklch(0.22 0.006 264)",
+            borderRadius: 12,
+            padding: "8px 16px",
+            fontSize: 13,
+            color: "#fff",
+            fontWeight: 600,
+          }}
+        >
+          {totalVideos} Videos
+        </div>
+        <div
+          style={{
+            background: "oklch(0.22 0.006 264)",
+            borderRadius: 12,
+            padding: "8px 16px",
+            fontSize: 13,
+            color: "#fff",
+            fontWeight: 600,
+          }}
+        >
+          {totalViews} Views
+        </div>
       </div>
 
       {/* Content */}
