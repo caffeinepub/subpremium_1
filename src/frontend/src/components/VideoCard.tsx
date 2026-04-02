@@ -10,6 +10,22 @@ interface VideoCardProps {
 
 const RED = "oklch(0.548 0.222 27)";
 
+function getDisplayName(video: Video): string {
+  try {
+    const cu = JSON.parse(localStorage.getItem("authUser") || "null");
+    if (cu && (video as any).ownerId === cu.id) {
+      return (
+        cu.username ||
+        (video as any).ownerName ||
+        video.username ||
+        video.creator ||
+        ""
+      );
+    }
+  } catch {}
+  return (video as any).ownerName || video.username || video.creator || "";
+}
+
 export default function VideoCard({
   video,
   onSelect,
@@ -21,6 +37,7 @@ export default function VideoCard({
   const isProcessing = pct >= 99;
 
   const overlayLabel = isProcessing ? "Processing..." : `Uploading ${pct}%`;
+  const displayName = getDisplayName(video);
 
   return (
     <button
@@ -109,7 +126,7 @@ export default function VideoCard({
           {video.title}
         </p>
         <p className="text-xs mt-1" style={{ color: "oklch(0.55 0.01 264)" }}>
-          @{video.username || video.creator} ·{" "}
+          {displayName ? <>@{displayName} · </> : null}
           {isUploading ? overlayLabel : formatViews(video.views)}
         </p>
       </div>

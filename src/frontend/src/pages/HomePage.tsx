@@ -194,7 +194,8 @@ export default function HomePage({
           v.title.toLowerCase().includes(q) ||
           v.creator?.toLowerCase().includes(q) ||
           v.username?.toLowerCase().includes(q) ||
-          v.description?.toLowerCase().includes(q),
+          v.description?.toLowerCase().includes(q) ||
+          ((v as any).ownerName || "").toLowerCase().includes(q),
       )
     : videos;
 

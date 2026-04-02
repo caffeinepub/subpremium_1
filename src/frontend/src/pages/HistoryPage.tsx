@@ -33,11 +33,15 @@ export default function HistoryPage({
   const [allHistory, setAllHistory] = useState<Video[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("All");
   const [myVideos, setMyVideos] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [historyFilter, setHistoryFilter] = useState<"all" | "my">("all");
 
   useEffect(() => {
-    // Load current user's videos
+    // Load current user
     try {
       const user = JSON.parse(localStorage.getItem("authUser") || "null");
+      setCurrentUser(user);
+
       if (user) {
         const videos = Object.keys(localStorage)
           .filter((k) => k.startsWith("video_"))
@@ -85,7 +89,7 @@ export default function HistoryPage({
     setAllHistory(merged);
   }, []);
 
-  const filteredHistory = (() => {
+  const tabFiltered = (() => {
     if (activeTab === "All" || activeTab === "Watched") return allHistory;
     if (activeTab === "Videos")
       return allHistory.filter((v) => !v.status || v.status === "READY");
@@ -96,6 +100,11 @@ export default function HistoryPage({
     }
     return allHistory;
   })();
+
+  const filteredHistory =
+    historyFilter === "my" && currentUser
+      ? tabFiltered.filter((v: any) => v.ownerId === currentUser.id)
+      : tabFiltered;
 
   const isEmpty = filteredHistory.length === 0;
 
@@ -256,6 +265,38 @@ export default function HistoryPage({
         Watch History
       </h1>
 
+      {/* All / My Videos filter buttons */}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          padding: "8px 16px 4px",
+        }}
+      >
+        {(["all", "my"] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            data-ocid={"history.filter.tab"}
+            onClick={() => setHistoryFilter(f)}
+            style={{
+              background:
+                historyFilter === f ? "oklch(0.548 0.222 27)" : "#222",
+              color: "#fff",
+              border: "none",
+              borderRadius: 16,
+              padding: "6px 14px",
+              fontSize: 13,
+              fontWeight: historyFilter === f ? 700 : 400,
+              cursor: "pointer",
+              transition: "background 0.2s",
+            }}
+          >
+            {f === "all" ? "All" : "My Videos"}
+          </button>
+        ))}
+      </div>
+
       {/* Tabs */}
       <div
         style={{
@@ -305,7 +346,9 @@ export default function HistoryPage({
           <p className="text-white font-semibold text-base">
             {activeTab === "Liked"
               ? "No liked videos yet"
-              : "No watch history yet"}
+              : historyFilter === "my"
+                ? "No videos in your history"
+                : "No watch history yet"}
           </p>
           <p className="text-sm" style={{ color: "oklch(0.55 0.01 264)" }}>
             {activeTab === "Liked"
@@ -322,6 +365,14 @@ export default function HistoryPage({
             const progressPct = video.duration
               ? formatProgress(watchedSecs, video.duration)
               : 0;
+
+            let displayName =
+              (video as any).ownerName || video.username || video.creator;
+            try {
+              const cu = JSON.parse(localStorage.getItem("authUser") || "null");
+              if (cu && (video as any).ownerId === cu.id)
+                displayName = cu.username || displayName;
+            } catch {}
 
             return (
               <button
@@ -442,7 +493,7 @@ export default function HistoryPage({
                     {video.title}
                   </p>
                   <p style={{ color: "oklch(0.55 0.01 264)", fontSize: 12 }}>
-                    @{video.username || video.creator}
+                    @{displayName}
                   </p>
                   {watchedSecs > 0 && (
                     <p
