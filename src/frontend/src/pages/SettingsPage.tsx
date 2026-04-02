@@ -105,9 +105,13 @@ export default function SettingsPage({
   };
 
   const handleClearCache = () => {
-    const saved = localStorage.getItem("authUser");
+    const authUser = localStorage.getItem("authUser");
+    const users = localStorage.getItem("users");
+    const tokens = localStorage.getItem("tokens");
     localStorage.clear();
-    if (saved) localStorage.setItem("authUser", saved);
+    if (authUser) localStorage.setItem("authUser", authUser);
+    if (users) localStorage.setItem("users", users);
+    if (tokens) localStorage.setItem("tokens", tokens);
     setCacheCleared(true);
     setTimeout(() => setCacheCleared(false), 2000);
   };

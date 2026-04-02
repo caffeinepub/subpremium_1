@@ -54,6 +54,10 @@ export default function LoginPage({
 
   const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log(
+      "[SubPremium] users in storage:",
+      JSON.parse(localStorage.getItem("users") || "[]"),
+    );
     if (!username.trim()) {
       setError("Please enter your username.");
       return;
