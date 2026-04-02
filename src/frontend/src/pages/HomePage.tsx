@@ -94,7 +94,7 @@ function ContinueWatchingRow({
   const MUTED = "oklch(0.55 0.01 264)";
 
   return (
-    <div className="px-4 pt-4" data-ocid="home.continue_watching_section">
+    <div className="px-4 pt-2" data-ocid="home.continue_watching_section">
       <p className="text-sm font-semibold text-white mb-3">Continue Watching</p>
       <div
         className="flex gap-3 overflow-x-auto pb-2"
@@ -202,7 +202,10 @@ export default function HomePage({
   const searchBar = (
     <>
       <style>{RAINBOW_CSS}</style>
-      <div className="mx-4 my-4" style={{ position: "relative", zIndex: 1 }}>
+      <div
+        className="mx-4 mt-4 mb-2"
+        style={{ position: "relative", zIndex: 1 }}
+      >
         <div className="rainbow-search-bar">
           <div
             style={{
@@ -261,8 +264,8 @@ export default function HomePage({
   if (loading && videos.length === 0) {
     return (
       <div className="animate-page-in" data-ocid="home.loading_state">
-        <ContinueWatchingRow videos={videos} onVideoSelect={onVideoSelect} />
         {searchBar}
+        <ContinueWatchingRow videos={videos} onVideoSelect={onVideoSelect} />
         <div className="flex flex-col items-center justify-center gap-4 py-20">
           <Loader2
             className="w-10 h-10 animate-spin"
@@ -276,8 +279,8 @@ export default function HomePage({
   if (videos.length === 0) {
     return (
       <div className="animate-page-in" data-ocid="home.section">
-        <ContinueWatchingRow videos={videos} onVideoSelect={onVideoSelect} />
         {searchBar}
+        <ContinueWatchingRow videos={videos} onVideoSelect={onVideoSelect} />
         <div className="flex flex-col items-center justify-center gap-4 py-20">
           <div
             className="w-20 h-20 rounded-2xl flex items-center justify-center mb-2"
@@ -316,8 +319,8 @@ export default function HomePage({
 
   return (
     <div className="animate-page-in" data-ocid="home.section">
-      <ContinueWatchingRow videos={videos} onVideoSelect={onVideoSelect} />
       {searchBar}
+      <ContinueWatchingRow videos={videos} onVideoSelect={onVideoSelect} />
       <div
         style={{
           display: "grid",

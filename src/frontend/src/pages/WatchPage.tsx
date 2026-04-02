@@ -181,11 +181,11 @@ export default function WatchPage({
 
   // Comments
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [commentCount, setCommentCount] = useState<number>(() => {
-    const all = JSON.parse(localStorage.getItem("comments") || "[]");
-    return all.filter((c: any) => c.videoId === video?.id).length;
-  });
   const [commentText, setCommentText] = useState("");
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [commentList, setCommentList] = useState<any[]>([]);
+  const commentCount = commentList.length;
 
   // Playlist modal
   const [playlistOpen, setPlaylistOpen] = useState(false);
@@ -712,15 +712,21 @@ export default function WatchPage({
   }
 
   // Comments
-  const getComments = () => {
+  const loadComments = () => {
     const all = JSON.parse(localStorage.getItem("comments") || "[]");
-    return all.filter((c: any) => c.videoId === video?.id);
+    setCommentList(all.filter((c: any) => c.videoId === video?.id));
+  };
+
+  const saveAndRefresh = (updated: any[]) => {
+    const all = JSON.parse(localStorage.getItem("comments") || "[]");
+    const others = all.filter((c: any) => c.videoId !== video?.id);
+    localStorage.setItem("comments", JSON.stringify([...updated, ...others]));
+    setCommentList(updated);
   };
 
   const addComment = () => {
     if (!commentText.trim()) return;
     const u = JSON.parse(localStorage.getItem("authUser") || "{}");
-    const all = JSON.parse(localStorage.getItem("comments") || "[]");
     const c = {
       id: `${Date.now()}`,
       videoId: video?.id,
@@ -728,25 +734,47 @@ export default function WatchPage({
       avatar: u.avatar || "",
       text: commentText,
       likes: 0,
+      dislikes: 0,
+      replies: [],
       createdAt: Date.now(),
     };
-    localStorage.setItem("comments", JSON.stringify([c, ...all]));
-    setCommentCount((prev) => prev + 1);
+    const next = [c, ...commentList];
+    saveAndRefresh(next);
     setCommentText("");
-    setCommentsOpen(false);
-    setTimeout(() => setCommentsOpen(true), 0);
     pushNotification("comment", video.id, video.title);
     onNotification?.();
   };
 
   const likeComment = (id: string) => {
-    const all = JSON.parse(localStorage.getItem("comments") || "[]");
-    const updated = all.map((c: any) =>
+    const next = commentList.map((c: any) =>
       c.id === id ? { ...c, likes: (c.likes || 0) + 1 } : c,
     );
-    localStorage.setItem("comments", JSON.stringify(updated));
-    setCommentsOpen(false);
-    setTimeout(() => setCommentsOpen(true), 0);
+    saveAndRefresh(next);
+  };
+
+  const dislikeComment = (id: string) => {
+    const next = commentList.map((c: any) =>
+      c.id === id ? { ...c, dislikes: (c.dislikes || 0) + 1 } : c,
+    );
+    saveAndRefresh(next);
+  };
+
+  const addReply = (commentId: string) => {
+    if (!replyText.trim()) return;
+    const u = JSON.parse(localStorage.getItem("authUser") || "{}");
+    const reply = {
+      id: `${Date.now()}`,
+      username: u.username,
+      avatar: u.avatar || "",
+      text: replyText,
+      createdAt: Date.now(),
+    };
+    const next = commentList.map((c: any) =>
+      c.id === commentId ? { ...c, replies: [...(c.replies || []), reply] } : c,
+    );
+    saveAndRefresh(next);
+    setReplyText("");
+    setReplyingTo(null);
   };
 
   // Playlist
@@ -1436,7 +1464,10 @@ export default function WatchPage({
         ))}
         <button
           type="button"
-          onClick={() => setCommentsOpen(true)}
+          onClick={() => {
+            loadComments();
+            setCommentsOpen(true);
+          }}
           className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl active:scale-95 transition-transform shrink-0"
           style={{ background: "oklch(0.22 0.006 264)" }}
           data-ocid="watch.comments_open_modal_button"
@@ -1555,25 +1586,40 @@ export default function WatchPage({
           onKeyDown={(e) => e.key === "Escape" && setCommentsOpen(false)}
           style={{
             position: "fixed",
-            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: "45vh",
             zIndex: 998,
-            background: "rgba(0,0,0,0.5)",
+            background: "transparent",
           }}
         />
       )}
       {commentsOpen && (
         <div
+          onTouchStart={(e) => {
+            const startY = e.touches[0].clientY;
+            const el = e.currentTarget;
+            const onMove = (ev: TouchEvent) => {
+              if (ev.touches[0].clientY - startY > 60) {
+                setCommentsOpen(false);
+                el.removeEventListener("touchmove", onMove);
+              }
+            };
+            el.addEventListener("touchmove", onMove, { passive: true });
+          }}
           style={{
             position: "fixed",
-            top: "55%",
             bottom: 0,
             left: 0,
             right: 0,
+            height: "45vh",
             background: "#0b0b0b",
             borderRadius: "16px 16px 0 0",
             zIndex: 999,
             display: "flex",
             flexDirection: "column",
+            boxShadow: "0 -4px 24px rgba(0,0,0,0.6)",
           }}
         >
           {/* Header */}
@@ -1608,7 +1654,7 @@ export default function WatchPage({
             style={{ overflowY: "auto", flex: 1, padding: "10px 16px" }}
             data-ocid="watch.comments_panel"
           >
-            {getComments().length === 0 && (
+            {commentList.length === 0 && (
               <p
                 style={{
                   color: "#666",
@@ -1620,87 +1666,251 @@ export default function WatchPage({
                 No comments yet. Be the first!
               </p>
             )}
-            {getComments().map((c: any, idx: number) => (
+            {commentList.map((c: any, idx: number) => (
               <div
                 key={c.id}
-                style={{ display: "flex", gap: "10px", marginBottom: "16px" }}
+                style={{ marginBottom: "18px" }}
                 data-ocid={`watch.comment.item.${idx + 1}`}
               >
-                {c.avatar ? (
-                  <img
-                    src={c.avatar}
-                    alt=""
-                    aria-hidden="true"
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "50%",
-                      flexShrink: 0,
-                    }}
-                  />
-                ) : (
+                {/* Main comment row */}
+                <div style={{ display: "flex", gap: "10px" }}>
+                  {c.avatar ? (
+                    <img
+                      src={c.avatar}
+                      alt=""
+                      aria-hidden="true"
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: "50%",
+                        flexShrink: 0,
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: "50%",
+                        background: "#333",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "white",
+                        fontSize: "14px",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {(c.username || "?")[0].toUpperCase()}
+                    </div>
+                  )}
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        color: "#aaa",
+                        fontSize: "13px",
+                        marginBottom: "2px",
+                      }}
+                    >
+                      @{c.username}
+                    </div>
+                    <div
+                      style={{
+                        color: "white",
+                        fontSize: "14px",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {c.text}
+                    </div>
+                    <div
+                      style={{
+                        color: "#555",
+                        fontSize: "11px",
+                        marginTop: "2px",
+                      }}
+                    >
+                      {relativeTime(c.createdAt)}
+                    </div>
+                    {/* Action row */}
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "12px",
+                        marginTop: "6px",
+                        alignItems: "center",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => likeComment(c.id)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#aaa",
+                          fontSize: "13px",
+                          cursor: "pointer",
+                          padding: 0,
+                        }}
+                      >
+                        👍 {c.likes || 0}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => dislikeComment(c.id)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#aaa",
+                          fontSize: "13px",
+                          cursor: "pointer",
+                          padding: 0,
+                        }}
+                      >
+                        👎 {c.dislikes || 0}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setReplyingTo(replyingTo === c.id ? null : c.id)
+                        }
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#e00",
+                          fontSize: "12px",
+                          cursor: "pointer",
+                          padding: 0,
+                        }}
+                      >
+                        💬 {(c.replies || []).length} Reply
+                      </button>
+                    </div>
+                    {/* Reply input */}
+                    {replyingTo === c.id && (
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "6px",
+                          marginTop: "8px",
+                        }}
+                      >
+                        <input
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && addReply(c.id)}
+                          placeholder="Write a reply..."
+                          style={{
+                            flex: 1,
+                            background: "#1a1a1a",
+                            border: "1px solid #333",
+                            borderRadius: "16px",
+                            padding: "6px 12px",
+                            color: "white",
+                            outline: "none",
+                            fontSize: "13px",
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => addReply(c.id)}
+                          style={{
+                            background: "#e00",
+                            border: "none",
+                            color: "white",
+                            borderRadius: "50%",
+                            width: "30px",
+                            height: "30px",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          ➤
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {/* Replies */}
+                {(c.replies || []).length > 0 && (
                   <div
                     style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "50%",
-                      background: "#333",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "white",
-                      fontSize: "14px",
-                      flexShrink: 0,
+                      marginLeft: "42px",
+                      marginTop: "10px",
+                      borderLeft: "2px solid #222",
+                      paddingLeft: "10px",
                     }}
                   >
-                    {(c.username || "?")[0].toUpperCase()}
+                    {(c.replies || []).map((r: any) => (
+                      <div
+                        key={r.id}
+                        style={{
+                          display: "flex",
+                          gap: "8px",
+                          marginBottom: "10px",
+                        }}
+                      >
+                        {r.avatar ? (
+                          <img
+                            src={r.avatar}
+                            alt=""
+                            aria-hidden="true"
+                            style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: "50%",
+                              flexShrink: 0,
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: "50%",
+                              background: "#444",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "white",
+                              fontSize: "11px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {(r.username || "?")[0].toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <div style={{ color: "#aaa", fontSize: "12px" }}>
+                            @{r.username}
+                          </div>
+                          <div
+                            style={{
+                              color: "white",
+                              fontSize: "13px",
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            {r.text}
+                          </div>
+                          <div
+                            style={{
+                              color: "#555",
+                              fontSize: "10px",
+                              marginTop: "1px",
+                            }}
+                          >
+                            {relativeTime(r.createdAt)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      color: "#aaa",
-                      fontSize: "13px",
-                      marginBottom: "2px",
-                    }}
-                  >
-                    @{c.username}
-                  </div>
-                  <div
-                    style={{
-                      color: "white",
-                      fontSize: "14px",
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    {c.text}
-                  </div>
-                  <div
-                    style={{
-                      color: "#555",
-                      fontSize: "11px",
-                      marginTop: "2px",
-                    }}
-                  >
-                    {relativeTime(c.createdAt)}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => likeComment(c.id)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#aaa",
-                      fontSize: "13px",
-                      cursor: "pointer",
-                      marginTop: "4px",
-                      padding: 0,
-                    }}
-                    data-ocid={`watch.comment.item.${idx + 1}`}
-                  >
-                    👍 {c.likes || 0}
-                  </button>
-                </div>
               </div>
             ))}
           </div>
@@ -1711,6 +1921,10 @@ export default function WatchPage({
               display: "flex",
               gap: "8px",
               borderTop: "1px solid #222",
+              position: "sticky",
+              bottom: 0,
+              background: "#0b0b0b",
+              flexShrink: 0,
             }}
           >
             <input
