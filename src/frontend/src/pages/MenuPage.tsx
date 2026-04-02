@@ -1,5 +1,5 @@
 import { useAuth } from "@/context/AuthContext";
-import { LogOut, Settings, Shield, User } from "lucide-react";
+import { Bookmark, LogOut, Settings, Shield, User } from "lucide-react";
 
 const navItems = [
   { icon: User, label: "Profile" },
@@ -7,7 +7,11 @@ const navItems = [
   { icon: Shield, label: "Privacy" },
 ];
 
-export default function MenuPage() {
+interface MenuPageProps {
+  onNavigate?: (route: string) => void;
+}
+
+export default function MenuPage({ onNavigate }: MenuPageProps) {
   const { authUser, logout } = useAuth();
 
   const myVideos = authUser
@@ -108,6 +112,21 @@ export default function MenuPage() {
             {label}
           </button>
         ))}
+
+        {/* Watch Later */}
+        <button
+          type="button"
+          onClick={() => onNavigate?.("watchLater")}
+          className="flex items-center gap-4 h-14 px-5 rounded-xl text-foreground text-sm font-medium active:scale-[0.98] transition-transform"
+          style={{ background: "oklch(0.22 0.006 264)" }}
+          data-ocid="menu.watch_later_button"
+        >
+          <Bookmark
+            className="w-5 h-5"
+            style={{ color: "oklch(0.55 0.01 264)" }}
+          />
+          Watch Later
+        </button>
 
         {/* Logout */}
         <button

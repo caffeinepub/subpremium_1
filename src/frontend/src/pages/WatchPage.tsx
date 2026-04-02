@@ -214,6 +214,18 @@ export default function WatchPage({
   );
   const [newPlaylistName, setNewPlaylistName] = useState("");
 
+  // Watch Later
+  const [savedToWatchLater, setSavedToWatchLater] = useState(() => {
+    try {
+      const list: Video[] = JSON.parse(
+        localStorage.getItem("watchLater") || "[]",
+      );
+      return list.some((v: Video) => v.id === initialVideo.id);
+    } catch {
+      return false;
+    }
+  });
+
   // More menu
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -441,10 +453,11 @@ export default function WatchPage({
     );
   }, [video.id]);
 
-  // Smart suggestions: same creator → similar titles → most viewed
+  // Smart suggestions: same creator → first-word match → title words → most viewed
   const suggestions = (() => {
     const others = allVideos.filter((v) => v.id !== video.id);
     const currentCreator = video.ownerId || video.username || video.creator;
+    const firstWord = (video.title || "").toLowerCase().split(" ")[0];
     const titleWords = new Set(
       (video.title || "")
         .toLowerCase()
@@ -452,23 +465,87 @@ export default function WatchPage({
         .filter((w) => w.length > 3),
     );
     return others.sort((a, b) => {
-      const aCreator =
-        (a.ownerId || a.username || a.creator) === currentCreator ? 1 : 0;
-      const bCreator =
-        (b.ownerId || b.username || b.creator) === currentCreator ? 1 : 0;
-      if (aCreator !== bCreator) return bCreator - aCreator;
-      const aWords = (a.title || "")
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((w) => titleWords.has(w)).length;
-      const bWords = (b.title || "")
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((w) => titleWords.has(w)).length;
-      if (aWords !== bWords) return bWords - aWords;
+      const score = (v: Video) => {
+        let s = 0;
+        if ((v.ownerId || v.username || v.creator) === currentCreator) s += 2;
+        if (
+          firstWord &&
+          (v.title || "").toLowerCase().split(" ")[0] === firstWord
+        )
+          s += 2;
+        s += (v.title || "")
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((w) => titleWords.has(w)).length;
+        return s;
+      };
+      const diff = score(b) - score(a);
+      if (diff !== 0) return diff;
       return (b.views || 0) - (a.views || 0);
     });
   })();
+
+  // Sync Watch Later saved state when video changes
+  useEffect(() => {
+    try {
+      const list: Video[] = JSON.parse(
+        localStorage.getItem("watchLater") || "[]",
+      );
+      setSavedToWatchLater(list.some((v: Video) => v.id === video.id));
+    } catch {
+      setSavedToWatchLater(false);
+    }
+  }, [video.id]);
+
+  // Real unique view count — fires after 3s, once per user per video
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally only re-runs on video.id change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const user = JSON.parse(localStorage.getItem("authUser") || "null");
+        if (!user?.id) return;
+        const key = `viewed_${video.id}`;
+        const viewed: string[] = JSON.parse(localStorage.getItem(key) || "[]");
+        if (viewed.includes(user.id)) return;
+
+        // Increment view
+        const updatedVideo = { ...video, views: (video.views || 0) + 1 };
+
+        // Save viewer
+        viewed.push(user.id);
+        localStorage.setItem(key, JSON.stringify(viewed));
+
+        // Update video in localStorage (video_ key)
+        const vidKey = `video_${video.id}`;
+        const stored = localStorage.getItem(vidKey);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            parsed.views = updatedVideo.views;
+            localStorage.setItem(vidKey, JSON.stringify(parsed));
+          } catch {}
+        }
+
+        // Also update the "videos" array key if it exists
+        try {
+          const allVids: Video[] = JSON.parse(
+            localStorage.getItem("videos") || "[]",
+          );
+          if (allVids.length > 0) {
+            const updatedAll = allVids.map((v) =>
+              v.id === video.id ? { ...v, views: updatedVideo.views } : v,
+            );
+            localStorage.setItem("videos", JSON.stringify(updatedAll));
+          }
+        } catch {}
+
+        // Update local state so view count shows immediately
+        setVideo(updatedVideo);
+      } catch {}
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [video.id]); // Only re-run when video.id changes (new video opened)
 
   // ── Suggestion click: swap video in-place, no page reload ──
   const handleSuggestionClick = useCallback(
@@ -595,6 +672,22 @@ export default function WatchPage({
       pushNotification("like", video.id, video.title);
       onNotification?.();
     }
+  }
+
+  // Watch Later save
+  function saveToWatchLater() {
+    try {
+      const list: Video[] = JSON.parse(
+        localStorage.getItem("watchLater") || "[]",
+      );
+      if (list.find((v) => v.id === video.id)) {
+        toast("Already in Watch Later");
+        return;
+      }
+      localStorage.setItem("watchLater", JSON.stringify([video, ...list]));
+      setSavedToWatchLater(true);
+      toast.success("Saved to Watch Later!");
+    } catch {}
   }
 
   function handleDislike() {
@@ -1379,7 +1472,7 @@ export default function WatchPage({
           </p>
         </button>
         <p className="text-sm mt-1" style={{ color: MUTED }}>
-          {formatViews(video.views)} · {video.date}
+          👁️ {formatViews(video.views)} · {video.date}
         </p>
       </div>
 
@@ -1504,9 +1597,9 @@ export default function WatchPage({
             {
               key: "save",
               Icon: Bookmark,
-              label: "Save",
-              active: false,
-              onClick: () => setPlaylistOpen(true),
+              label: savedToWatchLater ? "Saved" : "Save",
+              active: savedToWatchLater,
+              onClick: saveToWatchLater,
             },
             {
               key: "download",

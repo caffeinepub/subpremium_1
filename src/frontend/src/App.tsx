@@ -17,6 +17,7 @@ import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import SettingsPage from "@/pages/SettingsPage";
 import UploadPage from "@/pages/UploadPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
+import WatchLaterPage from "@/pages/WatchLaterPage";
 import WatchPage from "@/pages/WatchPage";
 import { useEffect, useRef, useState } from "react";
 
@@ -30,7 +31,8 @@ export type Route =
   | "login"
   | "watch"
   | "dashboard"
-  | "recover";
+  | "recover"
+  | "watchLater";
 
 interface Notification {
   id: string;
@@ -111,35 +113,15 @@ function WelcomeOverlay({ onDone }: { onDone: () => void }) {
   );
 }
 
-// ── Data Reset (runs once at module load, before any React renders) ──────────
+// ── Full Data Reset (runs once — clears ALL data for a fresh Day 1 start) ────
 function applyDataReset() {
-  const RESET_VERSION = "reset_v7";
+  const RESET_VERSION = "reset_v8_full";
   if (localStorage.getItem("_dataReset") === RESET_VERSION) return;
 
-  const keep = new Set([
-    "authUser",
-    "visited",
-    "notifSettings",
-    "privacySettings",
-    "videoQuality",
-    "autoplay",
-    "darkMode",
-    "_dataReset",
-    "users",
-    "tokens",
-  ]);
+  // Clear EVERYTHING — all users, all videos, all uploads, all history
+  localStorage.clear();
 
-  const toDelete: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && !keep.has(key)) {
-      toDelete.push(key);
-    }
-  }
-  for (const k of toDelete) {
-    localStorage.removeItem(k);
-  }
-
+  // Mark reset as done so it only runs once
   localStorage.setItem("_dataReset", RESET_VERSION);
 }
 
@@ -476,7 +458,7 @@ function AppContent() {
         )}
         {route === "menu" && (
           <div key="menu" className="px-4">
-            <MenuPage />
+            <MenuPage onNavigate={(r) => setRoute(r as Route)} />
           </div>
         )}
         {route === "settings" && (
@@ -501,6 +483,11 @@ function AppContent() {
         {route === "dashboard" && (
           <div key="dashboard">
             <DashboardPage onBack={() => setRoute("history")} />
+          </div>
+        )}
+        {route === "watchLater" && (
+          <div key="watchLater">
+            <WatchLaterPage onVideoSelect={handleVideoSelect} />
           </div>
         )}
       </main>
