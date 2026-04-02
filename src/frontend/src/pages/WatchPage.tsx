@@ -43,13 +43,6 @@ interface Playlist {
   videoIds: string[];
 }
 
-interface Comment {
-  id: string;
-  text: string;
-  author: string;
-  timestamp: number;
-}
-
 function getLS<T>(key: string, fallback: T): T {
   try {
     const v = localStorage.getItem(key);
@@ -187,9 +180,7 @@ export default function WatchPage({
   const [descExpanded, setDescExpanded] = useState(false);
 
   // Comments
-  const [comments, setComments] = useState<Comment[]>(() =>
-    getLS<Comment[]>(`comments_${video.id}`, []),
-  );
+  const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
 
   // Playlist modal
@@ -462,7 +453,6 @@ export default function WatchPage({
       // Reset per-video UI state
       setLiked(getLS<boolean>(`like_${nextVideo.id}`, false));
       setDisliked(getLS<boolean>(`dislike_${nextVideo.id}`, false));
-      setComments(getLS<Comment[]>(`comments_${nextVideo.id}`, []));
       setDescExpanded(false);
       setSettingsOpen(false);
       setMoreOpen(false);
@@ -717,22 +707,42 @@ export default function WatchPage({
     }
   }
 
-  // Comment
-  function submitComment() {
+  // Comments
+  const getComments = () => {
+    const all = JSON.parse(localStorage.getItem("comments") || "[]");
+    return all.filter((c: any) => c.videoId === video?.id);
+  };
+
+  const addComment = () => {
     if (!commentText.trim()) return;
-    const newComment: Comment = {
-      id: Date.now().toString(),
-      text: commentText.trim(),
-      author: authUser?.username || "anonymous",
-      timestamp: Date.now(),
+    const u = JSON.parse(localStorage.getItem("authUser") || "{}");
+    const all = JSON.parse(localStorage.getItem("comments") || "[]");
+    const c = {
+      id: `${Date.now()}`,
+      videoId: video?.id,
+      username: u.username,
+      avatar: u.avatar || "",
+      text: commentText,
+      likes: 0,
+      createdAt: Date.now(),
     };
-    const updated = [newComment, ...comments];
-    setComments(updated);
-    setLS(`comments_${video.id}`, updated);
+    localStorage.setItem("comments", JSON.stringify([c, ...all]));
     setCommentText("");
+    setCommentsOpen(false);
+    setTimeout(() => setCommentsOpen(true), 0);
     pushNotification("comment", video.id, video.title);
     onNotification?.();
-  }
+  };
+
+  const likeComment = (id: string) => {
+    const all = JSON.parse(localStorage.getItem("comments") || "[]");
+    const updated = all.map((c: any) =>
+      c.id === id ? { ...c, likes: (c.likes || 0) + 1 } : c,
+    );
+    localStorage.setItem("comments", JSON.stringify(updated));
+    setCommentsOpen(false);
+    setTimeout(() => setCommentsOpen(true), 0);
+  };
 
   // Playlist
   function toggleVideoInPlaylist(playlistId: string) {
@@ -1419,6 +1429,21 @@ export default function WatchPage({
             </span>
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setCommentsOpen(true)}
+          className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl active:scale-95 transition-transform shrink-0"
+          style={{ background: "oklch(0.22 0.006 264)" }}
+          data-ocid="watch.comments_open_modal_button"
+        >
+          <span className="text-lg">💬</span>
+          <span
+            className="text-[11px] font-medium"
+            style={{ color: "oklch(0.80 0.005 264)" }}
+          >
+            Comments
+          </span>
+        </button>
       </div>
 
       {/* ── More Menu ── */}
@@ -1516,83 +1541,213 @@ export default function WatchPage({
         )}
       </div>
 
-      {/* ── Comments ── */}
-      <div
-        className="px-4 py-3"
-        style={{ borderBottom: "1px solid oklch(0.22 0.006 264)" }}
-      >
-        <p className="text-sm font-semibold text-white mb-3">Comments</p>
-
-        <div className="flex gap-2 mb-4">
-          <Input
-            value={commentText}
-            onChange={(e) => setCommentText(e.target.value)}
-            placeholder="Add a comment…"
-            className="flex-1 rounded-full text-sm h-9"
+      {/* ── Comments Drawer ── */}
+      {commentsOpen && (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setCommentsOpen(false)}
+          onKeyDown={(e) => e.key === "Escape" && setCommentsOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 998,
+            background: "rgba(0,0,0,0.5)",
+          }}
+        />
+      )}
+      {commentsOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: "55%",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            background: "#0b0b0b",
+            borderRadius: "16px 16px 0 0",
+            zIndex: 999,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Header */}
+          <div
             style={{
-              background: "oklch(0.22 0.006 264)",
-              border: "1px solid oklch(0.28 0.006 264)",
-              color: "#fff",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "12px 16px",
+              borderBottom: "1px solid #222",
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submitComment();
-            }}
-            data-ocid="watch.comment_input"
-          />
-          <button
-            type="button"
-            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-transform"
-            style={{ background: RED }}
-            onClick={submitComment}
-            data-ocid="watch.comment_submit_button"
           >
-            <Send className="w-4 h-4 text-white" />
-          </button>
-        </div>
-
-        {comments.length === 0 && (
-          <p
-            className="text-xs text-center py-4"
-            style={{ color: MUTED }}
-            data-ocid="watch.comments_empty_state"
-          >
-            No comments yet. Be the first!
-          </p>
-        )}
-        <div className="flex flex-col gap-3">
-          {comments.map((c, i) => (
-            <div
-              key={c.id}
-              className="flex gap-2"
-              data-ocid={`watch.comment.item.${i + 1}`}
+            <span style={{ color: "white", fontWeight: 700, fontSize: "16px" }}>
+              Comments
+            </span>
+            <button
+              type="button"
+              onClick={() => setCommentsOpen(false)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#aaa",
+                fontSize: "20px",
+                cursor: "pointer",
+              }}
             >
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 mt-0.5"
-                style={{ background: RED }}
+              ✕
+            </button>
+          </div>
+          {/* Comment list */}
+          <div
+            style={{ overflowY: "auto", flex: 1, padding: "10px 16px" }}
+            data-ocid="watch.comments_panel"
+          >
+            {getComments().length === 0 && (
+              <p
+                style={{
+                  color: "#666",
+                  textAlign: "center",
+                  marginTop: "20px",
+                }}
+                data-ocid="watch.comments_empty_state"
               >
-                {c.author.slice(0, 1).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="text-xs font-semibold"
-                    style={{ color: RED }}
+                No comments yet. Be the first!
+              </p>
+            )}
+            {getComments().map((c: any, idx: number) => (
+              <div
+                key={c.id}
+                style={{ display: "flex", gap: "10px", marginBottom: "16px" }}
+                data-ocid={`watch.comment.item.${idx + 1}`}
+              >
+                {c.avatar ? (
+                  <img
+                    src={c.avatar}
+                    alt=""
+                    aria-hidden="true"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      background: "#333",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "white",
+                      fontSize: "14px",
+                      flexShrink: 0,
+                    }}
                   >
-                    @{c.author}
-                  </span>
-                  <span className="text-xs" style={{ color: MUTED }}>
-                    {relativeTime(c.timestamp)}
-                  </span>
+                    {(c.username || "?")[0].toUpperCase()}
+                  </div>
+                )}
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      color: "#aaa",
+                      fontSize: "13px",
+                      marginBottom: "2px",
+                    }}
+                  >
+                    @{c.username}
+                  </div>
+                  <div
+                    style={{
+                      color: "white",
+                      fontSize: "14px",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {c.text}
+                  </div>
+                  <div
+                    style={{
+                      color: "#555",
+                      fontSize: "11px",
+                      marginTop: "2px",
+                    }}
+                  >
+                    {relativeTime(c.createdAt)}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => likeComment(c.id)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#aaa",
+                      fontSize: "13px",
+                      cursor: "pointer",
+                      marginTop: "4px",
+                      padding: 0,
+                    }}
+                    data-ocid={`watch.comment.item.${idx + 1}`}
+                  >
+                    👍 {c.likes || 0}
+                  </button>
                 </div>
-                <p className="text-sm text-white mt-0.5 leading-snug break-words">
-                  {c.text}
-                </p>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+          {/* Input bar */}
+          <div
+            style={{
+              padding: "10px 16px",
+              display: "flex",
+              gap: "8px",
+              borderTop: "1px solid #222",
+            }}
+          >
+            <input
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addComment()}
+              placeholder="Add a comment..."
+              style={{
+                flex: 1,
+                background: "#1a1a1a",
+                border: "1px solid #333",
+                borderRadius: "20px",
+                padding: "8px 14px",
+                color: "white",
+                outline: "none",
+                fontSize: "14px",
+              }}
+              data-ocid="watch.comment_input"
+            />
+            <button
+              type="button"
+              onClick={addComment}
+              style={{
+                background: "#e00",
+                border: "none",
+                color: "white",
+                borderRadius: "50%",
+                width: "36px",
+                height: "36px",
+                cursor: "pointer",
+                fontSize: "18px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              data-ocid="watch.comment_submit_button"
+            >
+              ➤
+            </button>
+          </div>
         </div>
-      </div>
-
+      )}
       {/* ── Up Next ── */}
       <div className="px-4 py-3 pb-6">
         <p className="text-sm font-semibold text-white mb-3">Up Next</p>
