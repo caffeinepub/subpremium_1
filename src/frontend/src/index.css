@@ -93,3 +93,77 @@
     animation: welcome-fade 3.6s ease-in-out both;
   }
 }
+
+/* Search bar with animated rainbow phosphor lines */
+.searchBar {
+  position: relative;
+  border-radius: 20px;
+  background: #111;
+  padding: 12px;
+  margin: 8px 16px;
+  overflow: hidden;
+}
+
+.searchBar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    red,
+    orange,
+    yellow,
+    green,
+    cyan,
+    blue,
+    violet,
+    red
+  );
+  background-size: 200% 100%;
+  animation: moveLine 4s linear infinite;
+}
+
+.searchBar::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    red,
+    orange,
+    yellow,
+    green,
+    cyan,
+    blue,
+    violet,
+    red
+  );
+  background-size: 200% 100%;
+  animation: moveLine 4s linear infinite reverse;
+}
+
+.searchInput {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: white;
+  outline: none;
+  position: relative;
+  z-index: 2;
+  font-size: 14px;
+}
+
+@keyframes moveLine {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}

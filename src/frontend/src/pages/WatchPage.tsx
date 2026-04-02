@@ -181,6 +181,10 @@ export default function WatchPage({
 
   // Comments
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentCount, setCommentCount] = useState<number>(() => {
+    const all = JSON.parse(localStorage.getItem("comments") || "[]");
+    return all.filter((c: any) => c.videoId === video?.id).length;
+  });
   const [commentText, setCommentText] = useState("");
 
   // Playlist modal
@@ -727,6 +731,7 @@ export default function WatchPage({
       createdAt: Date.now(),
     };
     localStorage.setItem("comments", JSON.stringify([c, ...all]));
+    setCommentCount((prev) => prev + 1);
     setCommentText("");
     setCommentsOpen(false);
     setTimeout(() => setCommentsOpen(true), 0);
@@ -1441,7 +1446,7 @@ export default function WatchPage({
             className="text-[11px] font-medium"
             style={{ color: "oklch(0.80 0.005 264)" }}
           >
-            Comments
+            {commentCount > 0 ? `💬 ${commentCount}` : "Comments"}
           </span>
         </button>
       </div>

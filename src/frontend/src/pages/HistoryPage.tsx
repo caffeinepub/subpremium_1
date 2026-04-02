@@ -1,5 +1,5 @@
 import type { Video } from "@/data/videos";
-import { Clock, Play } from "lucide-react";
+import { Clock, Play, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface HistoryPageProps {
@@ -35,6 +35,7 @@ export default function HistoryPage({
   const [myVideos, setMyVideos] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [historyFilter, setHistoryFilter] = useState<"all" | "my">("all");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     // Load current user
@@ -101,10 +102,15 @@ export default function HistoryPage({
     return allHistory;
   })();
 
-  const filteredHistory =
+  const filteredHistory = (
     historyFilter === "my" && currentUser
       ? tabFiltered.filter((v: any) => v.ownerId === currentUser.id)
-      : tabFiltered;
+      : tabFiltered
+  ).filter(
+    (v) =>
+      v.title.toLowerCase().includes(query.toLowerCase()) ||
+      ((v as any).ownerName || "").toLowerCase().includes(query.toLowerCase()),
+  );
 
   const isEmpty = filteredHistory.length === 0;
 
@@ -265,6 +271,29 @@ export default function HistoryPage({
         Watch History
       </h1>
 
+      {/* Search bar */}
+      <div className="searchBar" data-ocid="history.search_input">
+        <Search
+          style={{
+            position: "absolute",
+            left: 12,
+            top: "50%",
+            transform: "translateY(-50%)",
+            color: "oklch(0.55 0.01 264)",
+            width: 16,
+            height: 16,
+            zIndex: 2,
+          }}
+        />
+        <input
+          className="searchInput"
+          style={{ paddingLeft: 28 }}
+          placeholder="Search history..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
       {/* All / My Videos filter buttons */}
       <div
         style={{
@@ -348,12 +377,16 @@ export default function HistoryPage({
               ? "No liked videos yet"
               : historyFilter === "my"
                 ? "No videos in your history"
-                : "No watch history yet"}
+                : query
+                  ? "No results found"
+                  : "No watch history yet"}
           </p>
           <p className="text-sm" style={{ color: "oklch(0.55 0.01 264)" }}>
             {activeTab === "Liked"
               ? "Like a video to see it here"
-              : "Videos you watch will appear here"}
+              : query
+                ? "Try a different search term"
+                : "Videos you watch will appear here"}
           </p>
         </div>
       ) : (
