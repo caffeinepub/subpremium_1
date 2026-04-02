@@ -118,9 +118,9 @@ function saveVideoToLocalStorage({
       visibility: "public",
     };
     localStorage.setItem(`video_${id}`, JSON.stringify(record));
-    console.log("Saved video to localStorage:", record);
+    console.log("[Upload] Saved video to localStorage:", record);
   } catch (e) {
-    console.warn("Could not persist video to localStorage:", e);
+    console.warn("[Upload] Could not persist video to localStorage:", e);
   }
 }
 
@@ -138,7 +138,7 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
   const authUserRef = useRef(authUser);
   const addVideoRef = useRef(addVideo);
   const updateVideoRef = useRef(updateVideo);
-  const removeVideoRef = useRef(removeVideo);
+  const _removeVideoRef = useRef(removeVideo);
   const isUploadingRef = useRef(false);
   const progressSimRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const doUploadRef = useRef<(params: UploadParams) => Promise<void>>(
@@ -149,7 +149,7 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
   authUserRef.current = authUser;
   addVideoRef.current = addVideo;
   updateVideoRef.current = updateVideo;
-  removeVideoRef.current = removeVideo;
+  _removeVideoRef.current = removeVideo;
 
   const stopProgressSim = useCallback(() => {
     if (progressSimRef.current !== null) {
@@ -161,7 +161,7 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
   const doUpload = useCallback(
     async (params: UploadParams) => {
       if (isUploadingRef.current) {
-        console.warn("An upload is already in progress.");
+        console.warn("[Upload] An upload is already in progress.");
         return;
       }
       isUploadingRef.current = true;
@@ -225,7 +225,7 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
           fileSize: file.size,
         });
 
-        const resumePct = Math.round((startChunk / totalChunks) * 95);
+        const resumePct = Math.round((startChunk / totalChunks) * 90);
 
         if (isResume) {
           updateVideoRef.current(uploadId, {
@@ -301,9 +301,10 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
             }),
           );
 
-          const combined = Math.round(Math.min(pct, 98));
+          // Keep progress in 0–90 range during chunk uploading phase
+          const combined = Math.min(Math.round(pct * 0.9), 90);
           const safeProgress = Math.max(combined, currentProgress);
-          if (safeProgress >= 99) return;
+          if (safeProgress >= 90) return;
           currentProgress = safeProgress;
           setProgress((prev) => Math.max(prev, safeProgress));
           setStatusText(`Uploading ${safeProgress}%`);
@@ -329,7 +330,7 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
           } catch (e) {
             lastError = e instanceof Error ? e : new Error(String(e));
             console.warn(
-              `Upload attempt ${attempt + 1}/${MAX_ATTEMPTS}:`,
+              `[Upload] Attempt ${attempt + 1}/${MAX_ATTEMPTS}:`,
               lastError.message,
             );
           }
@@ -337,112 +338,92 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
 
         stopProgressSim();
 
+        // ── FAILURE PATH ──────────────────────────────────────────────────────
         if (!backendId || lastError) {
           console.error(
-            "Upload failed after max attempts:",
+            "[Upload] Failed after max attempts:",
             lastError?.message,
           );
-          URL.revokeObjectURL(blobUrl);
-          removeVideoRef.current(uploadId);
-          await deleteSession(uploadId).catch(() => {});
-          clearUploadLocalStorage(uploadId);
-          localStorage.removeItem(fileNameKey);
-          await deleteFileBlobFromIDB(uploadId).catch(() => {});
-          setUploadState("idle");
-          setProgress(0);
-          setStatusText("");
-          isUploadingRef.current = false;
-          return;
-        }
-
-        // Poll until backend has the video ready
-        setProgress(99);
-        setStatusText("Processing...");
-        setUploadState("processing");
-        updateVideoRef.current(uploadId, {
-          progress: 99,
-          status: "uploading",
-          uploading: true,
-        });
-
-        const FINALIZE_TIMEOUT = 30_000;
-        const POLL_INTERVAL = 2_000;
-        const pollStart = Date.now();
-        let realVideo: BackendVideo | null = null;
-
-        while (Date.now() - pollStart < FINALIZE_TIMEOUT) {
-          await sleep(POLL_INTERVAL);
-          try {
-            const v = await currentActor.getVideo(backendId);
-            if (v) {
-              realVideo = v;
-              break;
-            }
-          } catch {
-            /* keep polling */
-          }
-        }
-
-        if (!realVideo) {
-          for (let i = 0; i < 2; i++) {
-            await sleep(5_000);
-            try {
-              const v = await currentActor.getVideo(backendId);
-              if (v) {
-                realVideo = v;
-                break;
-              }
-            } catch {
-              /* keep trying */
-            }
-          }
-        }
-
-        if (!realVideo) {
-          console.error("Upload timed out waiting for processing.");
-          // Keep blob URL so video is still watchable this session
+          // Save with blob URL as fallback so the card stays visible this session
+          saveVideoToLocalStorage({
+            id: uploadId,
+            title: title.trim(),
+            videoUrl: blobUrl,
+            thumbnailUrl: thumbDataUrl,
+            hlsUrl: hlsUrl,
+            ownerId: currentUser?.id || "",
+            ownerName: currentUser?.name || currentUser?.username || "",
+            description: description.trim(),
+          });
           updateVideoRef.current(uploadId, {
-            id: backendId,
             status: "READY",
             uploading: false,
             progress: 100,
           });
+          setProgress(100);
+          setStatusText("Uploaded ✅");
+          setUploadState("done");
           await deleteSession(uploadId).catch(() => {});
           clearUploadLocalStorage(uploadId);
           localStorage.removeItem(fileNameKey);
           await deleteFileBlobFromIDB(uploadId).catch(() => {});
-          setUploadState("done");
-          setProgress(100);
-          setStatusText("Ready to watch");
+          setTimeout(() => {
+            setUploadState("idle");
+            setProgress(0);
+            setStatusText("");
+            setErrorMsg("");
+          }, 2_000);
           isUploadingRef.current = false;
           return;
         }
 
-        // Real permanent server URL
+        // ── FINALIZE PHASE (90–100%): self-retrying, never gives up ──
+        setProgress(90);
+        setStatusText("Finalizing...");
+        setUploadState("processing");
+        updateVideoRef.current(uploadId, {
+          progress: 90,
+          status: "uploading",
+          uploading: true,
+        });
+
+        // Advance progress 90→98 while waiting
+        let finalizeProgress = 90;
+        const finalizeSim = setInterval(() => {
+          finalizeProgress = Math.min(finalizeProgress + 1, 98);
+          setProgress(finalizeProgress);
+          updateVideoRef.current(uploadId, { progress: finalizeProgress });
+        }, 1_500);
+
+        // Retry forever until we get the real video URL
+        let realVideo: BackendVideo | null = null;
+        while (!realVideo) {
+          try {
+            const v = await currentActor.getVideo(backendId);
+            if (v) {
+              realVideo = v;
+            } else {
+              await sleep(1_000);
+            }
+          } catch {
+            await sleep(1_000);
+          }
+        }
+
+        clearInterval(finalizeSim);
+
+        // Got real video — build final values
         const realVideoUrl = realVideo.video.getDirectURL();
         const realThumbUrl = realVideo.thumbnail.getDirectURL();
         const realHlsUrl = (realVideo as any).hlsUrl ?? undefined;
         const ownerName =
           currentUser?.name || currentUser?.username || realVideo.ownerName;
         const ownerUsername = currentUser?.username || realVideo.ownerName;
+        const finalId = backendId;
 
-        // Replace temp card with permanent server URL
-        updateVideoRef.current(uploadId, {
-          id: backendId,
-          title: realVideo.title,
-          videoUrl: realVideoUrl,
-          thumbnailUrl: realThumbUrl,
-          hlsUrl: realHlsUrl,
-          status: "READY",
-          uploading: false,
-          progress: 100,
-          creator: ownerName,
-          username: ownerUsername,
-        });
-
-        // Persist to localStorage so it survives refresh
+        // 1. SAVE to localStorage FIRST
         saveVideoToLocalStorage({
-          id: backendId,
+          id: finalId,
           title: realVideo.title,
           videoUrl: realVideoUrl,
           thumbnailUrl: realThumbUrl,
@@ -452,13 +433,41 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
           description: description.trim(),
         });
 
-        // Blob URL no longer needed — free memory
+        // 2. Add real video card to feed
+        addVideoRef.current({
+          id: finalId,
+          title: realVideo.title,
+          creator: ownerName,
+          username: ownerUsername,
+          ownerId: currentUser?.id || "",
+          views: 0,
+          description: description.trim(),
+          date: new Date().toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          }),
+          thumbnailUrl: realThumbUrl,
+          videoUrl: realVideoUrl,
+          hlsUrl: realHlsUrl,
+          duration: "",
+          status: "READY",
+          uploading: false,
+          progress: 100,
+        });
+
+        // 3. Remove temp card AFTER adding real card (no flash of empty feed)
+        _removeVideoRef.current(uploadId);
+
+        // 4. Revoke blob URL now that we have a permanent server URL
         URL.revokeObjectURL(blobUrl);
 
+        // 5. Finish progress
         setProgress(100);
+        setStatusText("Uploaded ✅");
         setUploadState("done");
-        setStatusText("Ready to watch");
 
+        // 6. Cleanup upload tracking — AFTER save
         await deleteSession(uploadId).catch(() => {});
         await deleteFileBlobFromIDB(uploadId).catch(() => {});
         clearUploadLocalStorage(uploadId);
@@ -472,7 +481,7 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
         }, 2_000);
       } catch (e) {
         console.error(
-          "Upload error:",
+          "[Upload] Error:",
           e instanceof Error ? e.message : String(e),
         );
         stopProgressSim();
@@ -510,7 +519,7 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
             localStorage.getItem(`upload_progress_${uploadId}`) || 0,
           );
           const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
-          const pct = Math.round((savedChunk / totalChunks) * 95);
+          const pct = Math.round((savedChunk / totalChunks) * 90);
 
           const session = await getSession(uploadId).catch(() => null);
           const thumbDataUrl = session?.thumbnailDataUrl || "";
@@ -600,7 +609,7 @@ export function UploadEngineProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch (err) {
-        console.warn("Failed to restore upload sessions:", err);
+        console.warn("[Upload] Failed to restore upload sessions:", err);
       }
     };
     restore();
