@@ -318,8 +318,12 @@ export default function HomePage({
       <ContinueWatchingRow videos={videos} onVideoSelect={onVideoSelect} />
       {searchBar}
       <div
-        className="divide-y"
-        style={{ borderColor: "oklch(0.22 0.006 264)" }}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: "12px",
+          padding: "10px",
+        }}
       >
         {filteredVideos.map((video, i) => (
           <VideoCard
@@ -330,23 +334,25 @@ export default function HomePage({
           />
         ))}
         {filteredVideos.length === 0 && debouncedQuery && (
-          <div
-            className="flex flex-col items-center justify-center py-16 gap-3"
-            data-ocid="home.empty_state"
-          >
-            <Search
-              className="w-10 h-10"
-              style={{ color: "oklch(0.4 0.006 264)" }}
-            />
-            <p
-              className="text-sm font-medium"
-              style={{ color: "oklch(0.7 0.01 264)" }}
+          <div style={{ gridColumn: "1 / -1" }}>
+            <div
+              className="flex flex-col items-center justify-center py-16 gap-3"
+              data-ocid="home.empty_state"
             >
-              No videos found
-            </p>
-            <p className="text-xs" style={{ color: "oklch(0.45 0.006 264)" }}>
-              Try a different title, creator, or keyword
-            </p>
+              <Search
+                className="w-10 h-10"
+                style={{ color: "oklch(0.4 0.006 264)" }}
+              />
+              <p
+                className="text-sm font-medium"
+                style={{ color: "oklch(0.7 0.01 264)" }}
+              >
+                No videos found
+              </p>
+              <p className="text-xs" style={{ color: "oklch(0.45 0.006 264)" }}>
+                Try a different title, creator, or keyword
+              </p>
+            </div>
           </div>
         )}
       </div>

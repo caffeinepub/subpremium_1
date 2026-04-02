@@ -798,7 +798,6 @@ export default function WatchPage({
         className="w-full aspect-video bg-black relative cursor-pointer"
         data-ocid="watch.canvas_target"
         onClick={() => {
-          togglePlay();
           setShowControls(true);
           resetHideTimer();
         }}
