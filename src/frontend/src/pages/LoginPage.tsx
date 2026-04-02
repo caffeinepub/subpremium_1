@@ -27,16 +27,25 @@ export default function LoginPage({
 }: LoginPageProps) {
   const { login } = useAuth();
   const [tab, setTab] = useState<Tab>("signin");
+
+  // Sign-in fields (email-based)
+  const [signInEmail, setSignInEmail] = useState("");
+  const [signInPassword, setSignInPassword] = useState("");
+
+  // Sign-up fields
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [recoveryAnswer, setRecoveryAnswer] = useState("");
+
   const [showPw, setShowPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [error, setError] = useState("");
 
   const resetForm = () => {
+    setSignInEmail("");
+    setSignInPassword("");
     setUsername("");
     setEmail("");
     setPassword("");
@@ -54,28 +63,29 @@ export default function LoginPage({
 
   const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log(
-      "[SubPremium] users in storage:",
-      JSON.parse(localStorage.getItem("users") || "[]"),
-    );
-    if (!username.trim()) {
-      setError("Please enter your username.");
+    const trimmedEmail = signInEmail.trim();
+    if (!trimmedEmail) {
+      setError("Please enter your email.");
       return;
     }
-    if (!password.trim()) {
+    if (!signInPassword) {
       setError("Please enter your password.");
       return;
     }
     const users = JSON.parse(localStorage.getItem("users") || "[]");
-    const user = users.find(
-      (u: { username: string; password: string }) =>
-        u.username === username.trim() && u.password === password,
+    console.log("[SubPremium] users in storage:", users);
+    const found = users.find(
+      (u: { email: string }) => u.email === trimmedEmail,
     );
-    if (!user) {
-      setError("Invalid username or password.");
+    if (!found) {
+      setError("Account not found.");
       return;
     }
-    login(user);
+    if (found.password !== signInPassword) {
+      setError("Wrong password.");
+      return;
+    }
+    login(found);
     onSuccess();
   };
 
@@ -195,95 +205,149 @@ export default function LoginPage({
           onSubmit={tab === "signin" ? handleSignIn : handleSignUp}
           className="flex flex-col gap-4"
         >
-          <div className="flex flex-col gap-1.5">
-            <Label
-              htmlFor="login-username"
-              className="text-sm font-medium text-foreground"
-            >
-              Username
-            </Label>
-            <Input
-              id="login-username"
-              type="text"
-              placeholder="Enter username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
-              autoComplete="username"
-              data-ocid="login.input"
-            />
-          </div>
-
-          {tab === "signup" && (
-            <div className="flex flex-col gap-1.5">
-              <Label
-                htmlFor="login-email"
-                className="text-sm font-medium text-foreground"
-              >
-                Email
-              </Label>
-              <Input
-                id="login-email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
-                autoComplete="email"
-                data-ocid="login.email_input"
-              />
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <Label
-              htmlFor="login-password"
-              className="text-sm font-medium text-foreground"
-            >
-              Password
-            </Label>
-            <div className="relative">
-              <Input
-                id="login-password"
-                type={showPw ? "text" : "password"}
-                placeholder="Enter password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary pr-11"
-                autoComplete={
-                  tab === "signin" ? "current-password" : "new-password"
-                }
-                data-ocid="login.textarea"
-              />
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 active:scale-95 transition-transform"
-                style={{ color: "oklch(0.55 0.01 264)" }}
-                onClick={() => setShowPw((v) => !v)}
-                tabIndex={-1}
-                data-ocid="login.toggle"
-              >
-                {showPw ? (
-                  <EyeOff className="w-4 h-4" />
-                ) : (
-                  <Eye className="w-4 h-4" />
-                )}
-              </button>
-            </div>
-          </div>
-
-          {tab === "signup" && (
+          {tab === "signin" ? (
+            // ── Sign In fields ──────────────────────────────────────────
             <>
               <div className="flex flex-col gap-1.5">
                 <Label
-                  htmlFor="login-confirm-password"
+                  htmlFor="signin-email"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Email
+                </Label>
+                <Input
+                  id="signin-email"
+                  type="email"
+                  placeholder="Enter email"
+                  value={signInEmail}
+                  onChange={(e) => setSignInEmail(e.target.value)}
+                  className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
+                  autoComplete="email"
+                  data-ocid="login.input"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label
+                  htmlFor="signin-password"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="signin-password"
+                    type={showPw ? "text" : "password"}
+                    placeholder="Enter password"
+                    value={signInPassword}
+                    onChange={(e) => setSignInPassword(e.target.value)}
+                    className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary pr-11"
+                    autoComplete="current-password"
+                    data-ocid="login.textarea"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 active:scale-95 transition-transform"
+                    style={{ color: "oklch(0.55 0.01 264)" }}
+                    onClick={() => setShowPw((v) => !v)}
+                    tabIndex={-1}
+                    data-ocid="login.toggle"
+                  >
+                    {showPw ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            // ── Sign Up fields ──────────────────────────────────────────
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label
+                  htmlFor="signup-username"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Username
+                </Label>
+                <Input
+                  id="signup-username"
+                  type="text"
+                  placeholder="Enter username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
+                  autoComplete="username"
+                  data-ocid="login.input"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label
+                  htmlFor="signup-email"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Email
+                </Label>
+                <Input
+                  id="signup-email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
+                  autoComplete="email"
+                  data-ocid="login.email_input"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label
+                  htmlFor="signup-password"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="signup-password"
+                    type={showPw ? "text" : "password"}
+                    placeholder="Enter password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-11 rounded-xl border-border bg-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary pr-11"
+                    autoComplete="new-password"
+                    data-ocid="login.textarea"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 active:scale-95 transition-transform"
+                    style={{ color: "oklch(0.55 0.01 264)" }}
+                    onClick={() => setShowPw((v) => !v)}
+                    tabIndex={-1}
+                    data-ocid="login.toggle"
+                  >
+                    {showPw ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label
+                  htmlFor="signup-confirm-password"
                   className="text-sm font-medium text-foreground"
                 >
                   Confirm Password
                 </Label>
                 <div className="relative">
                   <Input
-                    id="login-confirm-password"
+                    id="signup-confirm-password"
                     type={showConfirmPw ? "text" : "password"}
                     placeholder="Confirm password"
                     value={confirmPassword}
@@ -311,7 +375,7 @@ export default function LoginPage({
 
               <div className="flex flex-col gap-1.5">
                 <Label
-                  htmlFor="login-recovery"
+                  htmlFor="signup-recovery"
                   className="text-sm font-medium text-foreground"
                 >
                   Recovery Answer{" "}
@@ -323,7 +387,7 @@ export default function LoginPage({
                   </span>
                 </Label>
                 <Input
-                  id="login-recovery"
+                  id="signup-recovery"
                   type="text"
                   placeholder="e.g. blue"
                   value={recoveryAnswer}

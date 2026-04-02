@@ -1,3 +1,4 @@
+import AIAssistant from "@/components/AIAssistant";
 import BottomNav from "@/components/BottomNav";
 import TopNav from "@/components/TopNav";
 import { Toaster } from "@/components/ui/sonner";
@@ -512,6 +513,8 @@ function AppContent() {
       <Toaster />
 
       {showWelcome && <WelcomeOverlay onDone={() => setShowWelcome(false)} />}
+
+      <AIAssistant />
 
       <span style={{ display: "none", color: CARD_BG }} />
     </div>

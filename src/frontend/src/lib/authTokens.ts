@@ -36,7 +36,7 @@ export function deleteToken(token: string): void {
 export function updateUser(id: string, data: Record<string, unknown>): void {
   const users = JSON.parse(localStorage.getItem("users") || "[]");
   const updated = users.map((u: Record<string, unknown>) =>
-    u.id === id ? { ...u, ...data } : u,
+    String(u.id) === String(id) ? { ...u, ...data } : u,
   );
   localStorage.setItem("users", JSON.stringify(updated));
 }
@@ -47,8 +47,10 @@ export function getUpdatedUser(
 ): Record<string, unknown> | undefined {
   const users = JSON.parse(localStorage.getItem("users") || "[]");
   const updated = users.map((u: Record<string, unknown>) =>
-    u.id === id ? { ...u, ...data } : u,
+    String(u.id) === String(id) ? { ...u, ...data } : u,
   );
   localStorage.setItem("users", JSON.stringify(updated));
-  return updated.find((u: Record<string, unknown>) => u.id === id);
+  return updated.find(
+    (u: Record<string, unknown>) => String(u.id) === String(id),
+  );
 }
