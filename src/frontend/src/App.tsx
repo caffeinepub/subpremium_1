@@ -112,7 +112,7 @@ function WelcomeOverlay({ onDone }: { onDone: () => void }) {
 
 // ── Data Reset (runs once at module load, before any React renders) ──────────
 function applyDataReset() {
-  const RESET_VERSION = "reset_v6";
+  const RESET_VERSION = "reset_v7";
   if (localStorage.getItem("_dataReset") === RESET_VERSION) return;
 
   const keep = new Set([

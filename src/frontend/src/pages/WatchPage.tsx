@@ -13,7 +13,26 @@ import { useVideos } from "@/context/VideoContext";
 import { type Video, formatViews } from "@/data/videos";
 import { useActor } from "@/hooks/useActor";
 import { tombstoneSession } from "@/utils/uploadIDB";
-import Hls from "hls.js";
+// hls.js loaded dynamically from CDN at runtime
+interface HlsInstance {
+  loadSource(src: string): void;
+  attachMedia(el: HTMLVideoElement): void;
+  destroy(): void;
+  on(event: string, cb: (...args: unknown[]) => void): void;
+  currentLevel: number;
+  levels: { height: number }[];
+}
+interface HlsConstructor {
+  new (config?: Record<string, unknown>): HlsInstance;
+  isSupported(): boolean;
+}
+declare global {
+  interface Window {
+    Hls?: HlsConstructor;
+  }
+}
+const getHls = (): HlsConstructor | null =>
+  (window as Window & { Hls?: HlsConstructor }).Hls ?? null;
 import {
   ArrowLeft,
   Bookmark,
@@ -127,7 +146,7 @@ export default function WatchPage({
   const { updateVideo, removeVideo } = useVideos();
   const { actor } = useActor();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
+  const hlsRef = useRef<HlsInstance | null>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
 
   // Use local video state so edits and suggestion clicks reflect immediately
@@ -178,6 +197,7 @@ export default function WatchPage({
 
   // Description
   const [descExpanded, setDescExpanded] = useState(false);
+  const [infoPanelOpen, setInfoPanelOpen] = useState(false);
 
   // Comments
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -245,8 +265,8 @@ export default function WatchPage({
     }
     setHlsLevels([]);
 
-    if (isHls && Hls.isSupported()) {
-      const hls = new Hls({
+    if (isHls && (getHls()?.isSupported() ?? false)) {
+      const hls = new (getHls()!)({
         enableWorker: true,
         lowLatencyMode: false,
       });
@@ -257,7 +277,7 @@ export default function WatchPage({
 
       hls.currentLevel = -1;
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      hls.on("hlsManifestParsed", () => {
         const levels: HlsLevel[] = hls.levels.map((l, i) => ({
           index: i,
           label: l.height ? `${l.height}p` : `Level ${i + 1}`,
@@ -287,12 +307,13 @@ export default function WatchPage({
         el.play().catch(() => {});
       });
 
-      hls.on(Hls.Events.LEVEL_SWITCHING, () => {
+      hls.on("hlsLevelSwitching", () => {
         setQualitySwitching(true);
       });
 
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
-        const l = hls.levels[data.level];
+      hls.on("hlsLevelSwitched", (_, data: unknown) => {
+        const d = data as { level: number };
+        const l = hls.levels[d.level];
         setQuality(l?.height ? `${l.height}p` : "Auto");
         setQualitySwitching(false);
       });
@@ -1336,9 +1357,27 @@ export default function WatchPage({
 
       {/* ── Video Info ── */}
       <div className="px-4 pt-3">
-        <h1 className="text-lg font-bold text-white leading-tight">
-          {video.title}
-        </h1>
+        <button
+          type="button"
+          className="cursor-pointer text-left w-full bg-transparent border-none p-0"
+          onClick={() => setInfoPanelOpen(true)}
+          data-ocid="watch.title_panel_button"
+        >
+          <h1
+            className="text-lg font-bold text-white leading-tight"
+            style={{
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {video.title}
+          </h1>
+          <p className="text-xs mt-0.5" style={{ color: MUTED }}>
+            ...more
+          </p>
+        </button>
         <p className="text-sm mt-1" style={{ color: MUTED }}>
           {formatViews(video.views)} · {video.date}
         </p>
@@ -1385,6 +1424,50 @@ export default function WatchPage({
         >
           {subscribed ? "Subscribed" : "Subscribe"}
         </Button>
+      </div>
+
+      {/* ── Description ── */}
+      <div
+        className="px-4 py-3"
+        style={{ borderBottom: "1px solid oklch(0.22 0.006 264)" }}
+      >
+        <p className="text-xs font-semibold mb-2" style={{ color: MUTED }}>
+          Description
+        </p>
+        <div
+          className={`text-sm text-white leading-relaxed ${
+            descExpanded ? "whitespace-pre-line" : "line-clamp-2"
+          }`}
+        >
+          {video.description}
+        </div>
+        {!descExpanded && (
+          <button
+            type="button"
+            className="flex items-center gap-1 text-xs font-semibold mt-2"
+            style={{ color: RED }}
+            onClick={() => setDescExpanded(true)}
+            data-ocid="watch.description_toggle"
+          >
+            Show more <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {descExpanded && (
+          <>
+            <p className="text-xs mt-3" style={{ color: MUTED }}>
+              {creatorName} · {video.date}
+            </p>
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs font-semibold mt-2"
+              style={{ color: RED }}
+              onClick={() => setDescExpanded(false)}
+              data-ocid="watch.description_collapse"
+            >
+              Show less <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+          </>
+        )}
       </div>
 
       {/* ── Actions Row ── */}
@@ -1462,24 +1545,6 @@ export default function WatchPage({
             </span>
           </button>
         ))}
-        <button
-          type="button"
-          onClick={() => {
-            loadComments();
-            setCommentsOpen(true);
-          }}
-          className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl active:scale-95 transition-transform shrink-0"
-          style={{ background: "oklch(0.22 0.006 264)" }}
-          data-ocid="watch.comments_open_modal_button"
-        >
-          <span className="text-lg">💬</span>
-          <span
-            className="text-[11px] font-medium"
-            style={{ color: "oklch(0.80 0.005 264)" }}
-          >
-            {commentCount > 0 ? `💬 ${commentCount}` : "Comments"}
-          </span>
-        </button>
       </div>
 
       {/* ── More Menu ── */}
@@ -1533,49 +1598,25 @@ export default function WatchPage({
         </div>
       )}
 
-      {/* ── Description ── */}
-      <div
-        className="px-4 py-3"
-        style={{ borderBottom: "1px solid oklch(0.22 0.006 264)" }}
+      {/* ── Comments Preview ── */}
+      <button
+        type="button"
+        className="w-full flex items-center gap-3 px-4 py-3 active:bg-white/5 transition-colors"
+        style={{ borderTop: "1px solid oklch(0.22 0.006 264)" }}
+        onClick={() => {
+          loadComments();
+          setCommentsOpen(true);
+        }}
+        data-ocid="watch.comments_open_modal_button"
       >
-        <p className="text-xs font-semibold mb-2" style={{ color: MUTED }}>
-          Description
-        </p>
-        <div
-          className={`text-sm text-white leading-relaxed ${
-            descExpanded ? "whitespace-pre-line" : "line-clamp-2"
-          }`}
-        >
-          {video.description}
-        </div>
-        {!descExpanded && (
-          <button
-            type="button"
-            className="flex items-center gap-1 text-xs font-semibold mt-2"
-            style={{ color: RED }}
-            onClick={() => setDescExpanded(true)}
-            data-ocid="watch.description_toggle"
-          >
-            Show more <ChevronDown className="w-3.5 h-3.5" />
-          </button>
-        )}
-        {descExpanded && (
-          <>
-            <p className="text-xs mt-3" style={{ color: MUTED }}>
-              {creatorName} · {video.date}
-            </p>
-            <button
-              type="button"
-              className="flex items-center gap-1 text-xs font-semibold mt-2"
-              style={{ color: RED }}
-              onClick={() => setDescExpanded(false)}
-              data-ocid="watch.description_collapse"
-            >
-              Show less <ChevronUp className="w-3.5 h-3.5" />
-            </button>
-          </>
-        )}
-      </div>
+        <span className="text-base">💬</span>
+        <span className="text-sm font-semibold text-white">
+          {commentCount > 0 ? `${commentCount} Comments` : "Comments"}
+        </span>
+        <span className="ml-auto" style={{ color: MUTED }}>
+          ›
+        </span>
+      </button>
 
       {/* ── Comments Drawer ── */}
       {commentsOpen && (
@@ -1981,6 +2022,110 @@ export default function WatchPage({
           ))}
         </div>
       </div>
+
+      {/* ── Info Bottom Panel ── */}
+      {infoPanelOpen && (
+        <>
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label="Close info panel"
+            onClick={() => setInfoPanelOpen(false)}
+            onKeyDown={(e) => e.key === "Escape" && setInfoPanelOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 997,
+              background: "rgba(0,0,0,0.5)",
+            }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: "60vh",
+              background: "#111",
+              borderRadius: "16px 16px 0 0",
+              zIndex: 998,
+              overflowY: "auto",
+              boxShadow: "0 -4px 32px rgba(0,0,0,0.7)",
+            }}
+            data-ocid="watch.info_panel"
+          >
+            <div
+              style={{
+                position: "sticky",
+                top: 0,
+                background: "#111",
+                padding: "12px 16px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                borderBottom: "1px solid #222",
+              }}
+            >
+              <span
+                style={{ color: "white", fontWeight: 700, fontSize: "16px" }}
+              >
+                Video Info
+              </span>
+              <button
+                type="button"
+                onClick={() => setInfoPanelOpen(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#aaa",
+                  fontSize: "20px",
+                  cursor: "pointer",
+                }}
+                data-ocid="watch.info_panel_close_button"
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ padding: "16px" }}>
+              <h2
+                style={{
+                  color: "white",
+                  fontWeight: 700,
+                  fontSize: "16px",
+                  lineHeight: 1.4,
+                  marginBottom: "8px",
+                }}
+              >
+                {video.title}
+              </h2>
+              <p
+                style={{ color: "#aaa", fontSize: "13px", marginBottom: "4px" }}
+              >
+                @{creatorUsername}
+              </p>
+              <p
+                style={{
+                  color: "#aaa",
+                  fontSize: "13px",
+                  marginBottom: "12px",
+                }}
+              >
+                👍 {formatViews(video.views)} views · 📅 {video.date}
+              </p>
+              <p
+                style={{
+                  color: "#ccc",
+                  fontSize: "14px",
+                  lineHeight: 1.6,
+                  whiteSpace: "pre-line",
+                }}
+              >
+                {video.description || "No description."}
+              </p>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── Playlist Modal ── */}
       <Dialog open={playlistOpen} onOpenChange={setPlaylistOpen}>
