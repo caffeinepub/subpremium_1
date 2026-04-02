@@ -145,6 +145,8 @@ export default function UploadPage({ onNavigate }: UploadPageProps) {
       creator: authUser.name || authUser.username,
       username: authUser.username,
       ownerId: authUser.id,
+      ownerName: authUser.username,
+      avatar: authUser.avatarUrl || "",
       views: 0,
       description: description.trim(),
       date: new Date().toLocaleDateString("en-US", {

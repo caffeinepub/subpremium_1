@@ -45,6 +45,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!prev) return prev;
       const updated = { ...prev, ...partial };
       localStorage.setItem("authUser", JSON.stringify(updated));
+
+      // Sync all owned videos with latest username/avatar
+      for (const k of Object.keys(localStorage).filter((k) =>
+        k.startsWith("video_"),
+      )) {
+        try {
+          const v = JSON.parse(localStorage.getItem(k) || "");
+          if (v && v.ownerId === updated.id) {
+            v.ownerName = updated.username;
+            v.avatar = updated.avatarUrl || "";
+            localStorage.setItem(k, JSON.stringify(v));
+          }
+        } catch {}
+      }
+
       return updated;
     });
   };

@@ -54,6 +54,14 @@ export default function MenuPage() {
             >
               @{authUser.username}
             </span>
+            {authUser.email && (
+              <span
+                className="text-xs truncate"
+                style={{ color: "oklch(0.45 0.01 264)" }}
+              >
+                {authUser.email}
+              </span>
+            )}
           </div>
         </div>
       )}

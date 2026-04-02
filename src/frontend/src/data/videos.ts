@@ -18,6 +18,8 @@ export interface Video {
   isLocalVideo?: boolean; // saved directly to localStorage with blob URL
   visibility?: string; // "public" | "private" | "unlisted"
   createdAt?: number; // unix ms timestamp
+  ownerName?: string;
+  avatar?: string;
 }
 
 export const VIDEOS: Video[] = [];

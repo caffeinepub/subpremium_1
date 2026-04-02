@@ -212,11 +212,7 @@ export default function WatchPage({
   const [showControls, setShowControls] = useState(true);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isOwner =
-    authUser &&
-    (authUser.id === video.ownerId ||
-      authUser.username === video.username ||
-      authUser.username === video.creator);
+  const isOwner = authUser && authUser.id === video.ownerId;
 
   // Reset hide timer — clears existing timer and starts a new 5s countdown
   const resetHideTimer = useCallback(() => {
@@ -768,10 +764,12 @@ export default function WatchPage({
     toast.success(`Playlist "${newPl.name}" created!`);
   }
 
-  const creatorName =
-    video.creator || video.username || authUser?.name || "Creator";
-  const creatorUsername =
-    video.username || video.creator || authUser?.username || "creator";
+  const creatorName = isOwner
+    ? authUser?.name || authUser?.username || video.creator || "Creator"
+    : video.creator || video.ownerName || video.username || "Creator";
+  const creatorUsername = isOwner
+    ? authUser?.username || video.username || "creator"
+    : video.username || video.ownerName || video.creator || "creator";
   const initials = creatorName
     .split(" ")
     .map((w) => w[0])
